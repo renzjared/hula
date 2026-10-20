@@ -187,6 +187,7 @@
     .welcome-card h2, .results-card h2 { margin: 0 0 10px; font-size: clamp(28px, 4vw, 40px); letter-spacing: -.05em; }
     .welcome-card > p, .results-lede { color: var(--muted); line-height: 1.65; max-width: 590px; }
     .daily-date { margin: 22px 0 14px; color: var(--muted); font-size: 12px; }
+    .catalog-status { min-height: 18px; margin: -6px 0 12px; color: var(--muted); font-size: 11px; }
     .results-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
     .total-score { min-width: 135px; padding: 14px 17px; background: #282b20; border: 1px solid #414633; border-radius: 14px; text-align: right; }
     .total-score strong { display: block; color: var(--lime); font-size: 27px; letter-spacing: -.05em; }
@@ -267,9 +268,11 @@
         </div>
         <div class="card welcome-card">
           <h2 id="welcomeTitle">A new set, every day.</h2>
-          <p id="welcomeDescription">The daily playlist is picked using today's date, so players everywhere get the same five songs. Can you name them from just a split-second snippet?</p>
+          <p id="welcomeDescription">The daily playlist is picked from the Philippines Top Songs chart. Can you name five tracks from just a split-second snippet?</p>
           <div class="daily-date" id="dailyDate"></div>
-          <button class="primary-btn" id="startButton">Play today's game →</button>
+          <p class="catalog-status" id="catalogStatus" aria-live="polite">Loading songs from the Philippines Top Songs chart...</p>
+          <button class="primary-btn" id="startButton" disabled>Play today's game →</button>
+          <button class="secondary-btn" id="retryCatalogButton" type="button" hidden>Retry chart loading</button>
         </div>
       </section>
 
@@ -304,7 +307,7 @@
                 <input class="guess-input" id="guessInput" type="search" autocomplete="off" placeholder="Type a song or artist..." aria-autocomplete="list" aria-controls="suggestionList">
                 <div class="suggestion-list" id="suggestionList" role="listbox"></div>
               </div>
-              <div class="guess-note" id="guessNote" aria-live="polite">Search the song catalog and pick a match.</div>
+              <div class="guess-note" id="guessNote" aria-live="polite">Search Apple Music and pick a match.</div>
               <div class="action-row">
                 <button class="submit-btn" id="guessButton">Lock in guess</button>
                 <button class="skip-btn" id="skipButton">Skip song — forfeit points</button>
@@ -350,7 +353,7 @@
   </div>
   <audio id="audioPlayer" preload="none"></audio>
   <script>
-    const SONGS = [
+    const FALLBACK_SONGS = [
       { title: "Tala", artist: "Sarah Geronimo", popularity: 98, previewStartSeconds: 0.5 },
       { title: "Pantropiko", artist: "BINI", popularity: 98 },
       { title: "Dynamite", artist: "BTS", popularity: 98 },
@@ -453,6 +456,9 @@
       { title: "Dumaloy", artist: "SUD", popularity: 4 },
       { title: "Sana'y Di Na Lang", artist: "The Itchyworms", popularity: 2 }
     ];
+    let SONGS = FALLBACK_SONGS;
+    const CHART_CACHE_KEY = "hula-ph-chart";
+    const CHART_URL = "https://itunes.apple.com/ph/rss/topsongs/limit=100/json";
     const MAX_SCORE = 10000;
     const FREE_SECONDS = 0.1;
     const CLIP_STEPS = [0.1, 0.5, 1, 3, 10];
@@ -488,7 +494,6 @@
     let answerModalOpen = false;
     let selectedRevealValue = String(CLIP_STEPS[1]);
     let searchTimer = null;
-    let lastArtworkResults = [];
 
     function hashSeed(value) {
       let hash = 2166136261;
@@ -547,21 +552,78 @@
       const chosen = buckets.map((bucket, index) => shuffle(bucket, seededRandom(hashSeed(dailyDateKey + "-" + index)))[0]);
       return chosen.map((song) => ({ ...song }));
     }
+    function songsFromChart(entries) {
+      return entries.map((entry, index) => {
+        const image = (entry["im:image"] || []).slice().sort((a, b) =>
+          Number(b.attributes && b.attributes.height || 0) - Number(a.attributes && a.attributes.height || 0)
+        )[0];
+        const preview = (entry.link || []).find((link) => link.attributes && link.attributes.rel === "enclosure");
+        return {
+          title: entry["im:name"] && entry["im:name"].label || "",
+          artist: entry["im:artist"] && entry["im:artist"].label || "",
+          popularity: Math.max(1, 100 - index),
+          trackId: entry.id && entry.id.attributes && entry.id.attributes["im:id"] || "",
+          previewUrl: preview && preview.attributes && preview.attributes.href || "",
+          artworkUrl: image && image.label || ""
+        };
+      }).filter((song) => song.title && song.artist);
+    }
+    async function loadSongCatalog(ignoreCache = false) {
+      $("startButton").disabled = true;
+      $("retryCatalogButton").hidden = true;
+      $("catalogStatus").textContent = "Loading songs from the Philippines Top Songs chart...";
+      if (!ignoreCache) {
+        try {
+          const cached = JSON.parse(localStorage.getItem(CHART_CACHE_KEY) || "null");
+          if (cached && cached.date === dailyDateKey && Array.isArray(cached.songs) && cached.songs.length >= 5) {
+            SONGS = cached.songs;
+            $("catalogStatus").textContent = `Using today's cached Philippines Top Songs chart (${SONGS.length} songs).`;
+            $("startButton").disabled = false;
+            return;
+          }
+        } catch (error) {
+          console.warn("Could not read the cached song chart:", error);
+        }
+      }
+      try {
+        const response = await fetch(CHART_URL);
+        if (!response.ok) throw new Error(`Apple chart request failed (${response.status})`);
+        const data = await response.json();
+        const chartSongs = songsFromChart(data.feed && data.feed.entry || []);
+        if (chartSongs.length < 5) throw new Error("Apple returned fewer than five chart songs.");
+        SONGS = chartSongs;
+        try {
+          localStorage.setItem(CHART_CACHE_KEY, JSON.stringify({ date: dailyDateKey, songs: chartSongs }));
+        } catch (error) {
+          console.warn("Could not cache the song chart:", error);
+        }
+        $("catalogStatus").textContent = `Loaded ${SONGS.length} songs from the Philippines Top Songs chart.`;
+        $("startButton").disabled = false;
+      } catch (error) {
+        console.error("Could not load the Philippines Top Songs chart:", error);
+        SONGS = FALLBACK_SONGS;
+        $("catalogStatus").textContent = `Chart unavailable. Using the built-in ${SONGS.length}-song catalog instead.`;
+        $("startButton").disabled = false;
+        $("retryCatalogButton").hidden = false;
+      }
+    }
     function formatDate(dateString) {
       return new Intl.DateTimeFormat("en-PH", { dateStyle: "full", timeZone: PHILIPPINE_TIME_ZONE }).format(new Date(dateString + "T12:00:00Z"));
     }
     function checkDailyRollover() {
       const currentDateKey = getPhilippineDateKey();
-      if (currentDateKey === dailyDateKey) return;
+      if (currentDateKey === dailyDateKey) return false;
       dailyDateKey = currentDateKey;
       $("headerDate").textContent = formatDate(dailyDateKey);
       setMode(mode);
+      loadSongCatalog();
       if (mode === "daily" && !$("homeScreen").classList.contains("active")) {
         cancelAnswerModal();
         roundLoadGeneration++;
         stopAudio();
         showScreen("homeScreen");
       }
+      return true;
     }
     function showScreen(name) {
       document.querySelectorAll(".screen").forEach((screen) => screen.classList.toggle("active", screen.id === name));
@@ -583,6 +645,7 @@
       $("dailyTab").addEventListener("click", () => setMode("daily"));
       $("endlessTab").addEventListener("click", () => setMode("endless"));
       $("startButton").addEventListener("click", startGame);
+      $("retryCatalogButton").addEventListener("click", () => loadSongCatalog(true));
       $("againButton").addEventListener("click", () => {
         if (mode === "endless") { startGame(); return; }
         setMode("daily");
@@ -628,13 +691,13 @@
       $("endlessTab").setAttribute("aria-selected", String(!daily));
       $("welcomeTitle").textContent = daily ? "A new set, every day." : "How far can your ears take you?";
       $("welcomeDescription").textContent = daily
-        ? "A fresh daily set for everyone. Five songs, picked from the music we love."
+        ? "Five tracks picked from the Philippines Top Songs chart."
         : "Keep guessing. Each song gets less familiar as your streak grows.";
       $("dailyDate").textContent = daily ? "TODAY · " + formatDate(dailyDateKey) : "Songs get progressively harder with every round.";
       $("startButton").textContent = daily ? "Play today's game →" : "Start endless mode →";
     }
     function startGame() {
-      checkDailyRollover();
+      if (checkDailyRollover() || $("startButton").disabled) return;
       stopAudio();
       roundResults = [];
       roundIndex = 0;
@@ -668,7 +731,7 @@
       $("guessInput").disabled = false;
       $("guessButton").disabled = false;
       $("skipButton").disabled = false;
-      $("guessNote").textContent = "Search the song catalog and pick a match.";
+      $("guessNote").textContent = "Search Apple Music and pick a match.";
       $("guessNote").className = "guess-note";
       closeSuggestions();
       setAudioControlsEnabled(false);
@@ -743,6 +806,7 @@
               previewUrl: match.preview,
               artworkUrl100: match.album && match.album.cover_medium || ""
             };
+            artworkCache.set(key, track);
           }
         } catch (error) {
           console.warn("Deezer preview lookup failed; trying iTunes:", error);
@@ -766,12 +830,10 @@
           artworkCache.set(key, track);
         } catch (error) {
           console.warn("Song preview lookup failed:", error);
-          if (isCurrentLoad()) {
-            setAudioControlsEnabled(false);
-            setNote("Preview lookup failed. You can still search and guess the song.", "");
-          }
-          return;
         }
+      }
+      if (!track && song.previewUrl) {
+        track = { previewUrl: song.previewUrl, artworkUrl100: song.artworkUrl || "" };
       }
       if (!isCurrentLoad()) return;
       if (!track || !track.previewUrl) {
@@ -1071,24 +1133,18 @@
     function onSearchInput() {
       const query = $("guessInput").value.trim();
       selectedSuggestion = null;
+      clearTimeout(searchTimer);
       if (query.length < 2 || isRoundLocked) {
         closeSuggestions();
         return;
       }
-      const normalized = normalize(query);
-      const matches = SONGS.map((song) => ({
-        song,
-        score: normalize(song.title).includes(normalized) ? 2 : normalize(song.artist).includes(normalized) ? 1 : 0
-      })).filter((item) => item.score > 0).sort((a, b) => b.score - a.score || b.song.popularity - a.song.popularity).slice(0, 8);
-      renderSuggestions(matches.map((item) => item.song), query);
-      clearTimeout(searchTimer);
-      searchTimer = setTimeout(() => fetchSearchArtwork(query), 250);
+      setNote("Searching Apple Music...", "");
+      searchTimer = setTimeout(() => searchSongs(query), 250);
     }
     function renderSuggestions(items, query) {
       const list = $("suggestionList");
       list.innerHTML = items.map((song, index) => {
-        const track = lastArtworkResults.find((item) => normalize(item.trackName) === normalize(song.title));
-        const image = track && track.artworkUrl100 ? `<img src="${escapeHTML(track.artworkUrl100)}" alt="" loading="lazy">` : '<span class="cover-placeholder"></span>';
+        const image = song.artworkUrl ? `<img src="${escapeHTML(song.artworkUrl)}" alt="" loading="lazy">` : '<span class="cover-placeholder"></span>';
         return `<button class="suggestion" role="option" data-index="${index}">${image}<span><span class="suggestion-title">${escapeHTML(song.title)}</span><span class="suggestion-artist">${escapeHTML(song.artist)}</span></span></button>`;
       }).join("");
       list.classList.toggle("open", items.length > 0);
@@ -1096,27 +1152,39 @@
         button.addEventListener("click", () => chooseSuggestion(items[index]));
       });
       if (!items.length && query.length >= 2) {
-        setNote("No matching songs in this game's catalog.", "");
+        setNote("No matching songs found. Try another search.", "");
+      } else if (items.length) {
+        setNote("Select a song from the search results.", "");
       }
     }
-    async function fetchSearchArtwork(query) {
+    async function searchSongs(query) {
       try {
-        const response = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&country=ph&entity=song&limit=15`);
-        if (!response.ok) return;
+        const response = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&country=ph&entity=song&limit=25`);
+        if (!response.ok) throw new Error(`Apple song search failed (${response.status})`);
         const data = await response.json();
-        lastArtworkResults = data.results || [];
-        if ($("guessInput").value.trim() === query) onSearchInputArtworkRefresh(query);
+        if ($("guessInput").value.trim() !== query || isRoundLocked) return;
+        const normalized = normalize(query);
+        const matches = (data.results || []).map((track) => ({
+          title: track.trackName || "",
+          artist: track.artistName || "",
+          popularity: 0,
+          trackId: String(track.trackId || ""),
+          previewUrl: track.previewUrl || "",
+          artworkUrl: track.artworkUrl100 || ""
+        })).filter((song) => song.title && song.artist);
+        matches.sort((a, b) => {
+          const score = (song) => normalize(song.title).startsWith(normalized) ? 2
+            : normalize(song.title).includes(normalized) ? 1
+              : normalize(song.artist).includes(normalized) ? 0 : -1;
+          return score(b) - score(a);
+        });
+        renderSuggestions(matches.slice(0, 8), query);
       } catch (error) {
-        console.warn("Artwork lookup failed:", error);
+        if ($("guessInput").value.trim() !== query) return;
+        console.warn("Apple song search failed:", error);
+        closeSuggestions();
+        setNote("Song search failed. Check your connection and try again.", "error");
       }
-    }
-    function onSearchInputArtworkRefresh(query) {
-      const normalized = normalize(query);
-      const matches = SONGS.map((song) => ({
-        song,
-        score: normalize(song.title).includes(normalized) ? 2 : normalize(song.artist).includes(normalized) ? 1 : 0
-      })).filter((item) => item.score > 0).sort((a, b) => b.score - a.score || b.song.popularity - a.song.popularity).slice(0, 8);
-      renderSuggestions(matches.map((item) => item.song), query);
     }
     function chooseSuggestion(song) {
       selectedSuggestion = song;
@@ -1235,6 +1303,7 @@
     }
     setupHome();
     setMode("daily");
+    loadSongCatalog();
     window.setInterval(checkDailyRollover, 15000);
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) checkDailyRollover();
