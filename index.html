@@ -1,0 +1,1215 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#121212">
+  <title>Hula — daily music guessing game</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #121212;
+      --panel: #181818;
+      --panel-2: #242424;
+      --text: #fff;
+      --muted: #b3b3b3;
+      --line: #303030;
+      --lime: #1ed760;
+      --orange: #ff9a65;
+      --red: #ff786e;
+      --radius: 10px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+    }
+    button, input { font: inherit; }
+    button { color: inherit; }
+    button:focus-visible, input:focus-visible, select:focus-visible {
+      outline: 2px solid var(--lime);
+      outline-offset: 3px;
+    }
+    button:disabled { cursor: not-allowed; opacity: .48; }
+    .shell { width: min(1080px, calc(100% - 40px)); margin: 0 auto; }
+    header {
+      height: 88px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255,255,255,.09);
+    }
+    .brand { display: flex; align-items: center; gap: 11px; text-decoration: none; color: var(--text); cursor: pointer; }
+    .brand-mark {
+      display: grid; place-items: center; width: 38px; height: 38px;
+      background: var(--lime); color: #111; border-radius: 50%;
+      font-size: 19px; font-weight: 900;
+    }
+    .brand-name { font-size: 20px; font-weight: 850; letter-spacing: -.06em; }
+    .header-date { color: var(--muted); font-size: 13px; }
+    main { padding: 54px 0 70px; }
+    h1, h2, p { margin-top: 0; }
+    .home-hero { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(260px, .8fr); align-items: center; gap: 32px; margin-bottom: 30px; }
+    h1 { margin: 0 0 15px; font-size: clamp(44px, 7vw, 76px); line-height: .98; letter-spacing: -.075em; }
+    h1 span { color: var(--lime); }
+    .intro { max-width: 460px; color: var(--muted); font-size: 16px; line-height: 1.65; margin: 0; }
+    .home-art {
+      min-height: 210px; position: relative; overflow: hidden; display: flex; flex-direction: column;
+      justify-content: flex-end; padding: 22px; border-radius: 10px;
+      background: linear-gradient(145deg, #245c3a, #183c29 62%, #172a20);
+    }
+    .home-art::before, .home-art::after { content: ""; position: absolute; border-radius: 50%; border: 1px solid rgba(255,255,255,.13); }
+    .home-art::before { width: 260px; height: 260px; top: -118px; right: -36px; }
+    .home-art::after { width: 184px; height: 184px; top: -78px; right: 3px; }
+    .home-art-mark { position: absolute; right: 35px; top: 20px; color: rgba(255,255,255,.9); font-size: 80px; line-height: 1; }
+    .home-art-title { position: relative; z-index: 1; font-size: 21px; font-weight: 800; letter-spacing: -.04em; }
+    .home-art-subtitle { position: relative; z-index: 1; margin-top: 5px; color: rgba(255,255,255,.75); font-size: 12px; }
+    .mode-tabs { display: inline-flex; gap: 5px; margin: 0 0 16px; padding: 5px; background: #1b1b18; border: 1px solid var(--line); border-radius: 999px; }
+    .tab {
+      border: 0; background: transparent; color: var(--muted); padding: 10px 16px;
+      border-radius: 999px; cursor: pointer; font-size: 13px; font-weight: 750;
+    }
+    .tab.active { background: var(--lime); color: #111; }
+    .game-grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(280px, .8fr); gap: 18px; align-items: start; }
+    .card { background: var(--panel); border: 0; border-radius: var(--radius); }
+    .play-card { padding: 28px; }
+    .round-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+    .round-label { color: var(--muted); font-size: 13px; }
+    .round-label strong { color: var(--text); }
+    .score-pill { padding: 9px 12px; background: var(--panel-2); border-radius: 999px; color: var(--lime); font-size: 13px; font-weight: 800; white-space: nowrap; }
+    .score-pill small { color: var(--muted); font-size: 10px; font-weight: 700; }
+    .progress { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 22px 0 27px; }
+    .progress span { height: 5px; border-radius: 9px; background: #38382f; }
+    .progress span.done { background: var(--lime); }
+    .progress span.current { background: #788844; }
+    .audio-box {
+      min-height: 174px; display: flex; flex-direction: column; justify-content: center;
+      align-items: center; gap: 12px; border-radius: 8px; background: #222;
+    }
+    .play-snippet {
+      display: grid; place-items: center; width: 48px; height: 48px; padding-left: 3px;
+      border: 0; border-radius: 50%; background: var(--lime); color: #111;
+      font-size: 18px; cursor: pointer;
+    }
+    .play-snippet:hover { transform: scale(1.05); }
+    .wave { height: 45px; display: flex; align-items: center; gap: 4px; z-index: 1; }
+    .wave i { display: block; width: 3px; max-height: 38px; height: var(--h); border-radius: 8px; background: var(--lime); opacity: .82; }
+    .audio-caption { z-index: 1; color: #deded1; font-size: 12px; letter-spacing: .02em; }
+    .audio-caption strong { color: var(--lime); font-variant-numeric: tabular-nums; }
+    .audio-seeker { display: grid; grid-template-columns: 38px minmax(0, 1fr) 38px; align-items: center; gap: 8px; width: min(340px, calc(100% - 32px)); z-index: 1; color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+    .audio-seeker input { --seek-progress: 0%; width: 100%; height: 16px; margin: 0; appearance: none; background: transparent; cursor: pointer; }
+    .audio-seeker input::-webkit-slider-runnable-track { height: 4px; border-radius: 9px; background: linear-gradient(to right, var(--lime) var(--seek-progress), #555 var(--seek-progress)); }
+    .audio-seeker input::-moz-range-track { height: 4px; border-radius: 9px; background: #555; }
+    .audio-seeker input::-moz-range-progress { height: 4px; border-radius: 9px; background: var(--lime); }
+    .audio-seeker input::-webkit-slider-thumb { width: 12px; height: 12px; margin-top: -4px; appearance: none; border: 0; border-radius: 50%; background: #fff; }
+    .audio-seeker input::-moz-range-thumb { width: 12px; height: 12px; border: 0; border-radius: 50%; background: #fff; }
+    .audio-seeker input:disabled { cursor: not-allowed; opacity: .48; }
+    .controls-label { margin: 24px 0 10px; color: var(--muted); font-size: 12px; font-weight: 750; }
+    .reveal-row { display: flex; width: 100%; min-height: 46px; margin-top: 10px; overflow: hidden; border-radius: 999px; background: #2a2a2a; }
+    .reveal-btn { flex: 3; min-width: 0; padding: 10px 16px; border: 0; background: var(--lime); color: #111; cursor: pointer; font-size: 13px; font-weight: 800; }
+    .reveal-btn:hover { background: #3be477; }
+    .reveal-select-wrap { position: relative; flex: 1; min-width: 82px; border-left: 1px solid rgba(0,0,0,.18); }
+    .reveal-select { width: 100%; height: 100%; appearance: none; padding: 0 28px 0 12px; border: 0; background: #2a2a2a; color: var(--text); cursor: pointer; text-align: center; font-size: 12px; font-weight: 700; }
+    .reveal-select-wrap::after { content: "⌄"; position: absolute; right: 11px; top: 50%; color: var(--muted); transform: translateY(-55%); pointer-events: none; }
+    .reveal-select:disabled { opacity: .6; cursor: not-allowed; }
+    .replay-btn, .secondary-btn {
+      min-height: 40px; padding: 9px 14px; background: var(--panel-2); border: 1px solid var(--line);
+      border-radius: 999px; cursor: pointer; font-size: 12px; font-weight: 750; transition: background .15s, border-color .15s;
+    }
+    .replay-btn:hover, .secondary-btn:hover { border-color: #777; background: #303030; }
+    .guess-input {
+      width: 100%; min-width: 0; background: #131310; color: var(--text);
+      border: 1px solid #535353; border-radius: 5px; padding: 12px 13px;
+    }
+    .guess-area { margin-top: 24px; }
+    .guess-area label { display: block; margin-bottom: 9px; font-size: 13px; font-weight: 750; }
+    .suggestions { position: relative; }
+    .suggestion-list {
+      position: absolute; z-index: 5; top: calc(100% + 5px); left: 0; right: 0;
+      display: none; overflow: hidden; max-height: 290px; overflow-y: auto;
+      background: #282828; border: 1px solid #454545; border-radius: 8px;
+      box-shadow: 0 16px 35px rgba(0,0,0,.45);
+    }
+    .suggestion-list.open { display: block; }
+    .suggestion {
+      width: 100%; padding: 9px 11px; display: flex; align-items: center; gap: 11px;
+      text-align: left; background: transparent; border: 0; border-bottom: 1px solid rgba(255,255,255,.06); cursor: pointer;
+    }
+    .suggestion:hover { background: #303129; }
+    .suggestion img, .cover-placeholder { width: 42px; height: 42px; border-radius: 7px; object-fit: cover; background: #393a30; flex: 0 0 42px; }
+    .suggestion-title { display: block; font-size: 13px; font-weight: 760; }
+    .suggestion-artist { display: block; color: var(--muted); font-size: 11px; margin-top: 3px; }
+    .guess-note { min-height: 20px; margin-top: 8px; color: var(--muted); font-size: 11px; }
+    .guess-note.error { color: var(--red); }
+    .guess-note.success { color: var(--lime); }
+    .action-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 13px; }
+    .submit-btn, .primary-btn {
+      border: 0; background: var(--lime); color: #111; border-radius: 999px;
+      padding: 12px 18px; min-height: 44px; font-size: 13px; font-weight: 850; cursor: pointer;
+    }
+    .submit-btn:hover, .primary-btn:hover { background: #e0ff87; }
+    .skip-btn { padding: 8px 4px; border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; }
+    .skip-btn:hover { color: var(--text); }
+    .side-card { padding: 23px; }
+    .side-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 17px; }
+    .side-heading h2 { margin: 0; font-size: 15px; letter-spacing: -.02em; }
+    .side-heading span { color: var(--muted); font-size: 11px; }
+    .round-list { display: grid; gap: 8px; }
+    .round-item { display: flex; align-items: center; gap: 11px; min-height: 57px; padding: 9px 10px; border: 1px solid transparent; border-radius: 7px; background: #222; }
+    .round-item.active { background: #2a2a2a; }
+    .round-item.complete { background: #202020; }
+    .round-number { width: 25px; color: #818174; font-size: 11px; font-weight: 800; text-align: center; }
+    .round-item.complete .round-number { color: var(--lime); }
+    .round-info { min-width: 0; flex: 1; }
+    .difficulty { display: block; margin-bottom: 4px; color: var(--lime); font-size: 9px; font-weight: 800; letter-spacing: .11em; text-transform: uppercase; }
+    .difficulty-madali { color: #1ed760; }
+    .difficulty-katamtaman { color: #3d9bff; }
+    .difficulty-sakto { color: #bd69ff; }
+    .difficulty-mahirap { color: #ff9f43; }
+    .difficulty-nakakapagpabagabag { color: #ff5e67; }
+    .round-song { display: block; overflow: hidden; color: #fff; font-size: 14px; font-weight: 750; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+    .round-song.hidden-song { color: #b3b3b3; font-size: 12px; font-weight: 500; }
+    .round-artist { display: block; overflow: hidden; margin-top: 3px; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+    .round-points { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+    .hint-card { margin-top: 14px; padding: 15px; background: #222; border-radius: 8px; }
+    .hint-card strong { display: block; margin-bottom: 5px; font-size: 11px; }
+    .hint-card p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+    .attribution { margin: 16px 1px 0; color: #77776b; font-size: 10px; line-height: 1.5; }
+    .screen { display: none; }
+    .screen.active { display: block; }
+    .welcome-card, .results-card { padding: clamp(24px, 5vw, 36px); }
+    .welcome-card { background: linear-gradient(110deg, #202020, #181818 75%); }
+    .welcome-card h2, .results-card h2 { margin: 0 0 10px; font-size: clamp(28px, 4vw, 40px); letter-spacing: -.05em; }
+    .welcome-card > p, .results-lede { color: var(--muted); line-height: 1.65; max-width: 590px; }
+    .daily-date { margin: 22px 0 14px; color: var(--muted); font-size: 12px; }
+    .results-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+    .total-score { min-width: 135px; padding: 14px 17px; background: #282b20; border: 1px solid #414633; border-radius: 14px; text-align: right; }
+    .total-score strong { display: block; color: var(--lime); font-size: 27px; letter-spacing: -.05em; }
+    .total-score span { color: var(--muted); font-size: 10px; }
+    .results-list { display: grid; gap: 8px; margin: 28px 0 22px; }
+    .result-item { display:flex; align-items:center; gap:12px; padding:11px; background:#222; border-radius:8px; }
+    .result-item img, .result-cover { width:48px; height:48px; flex:0 0 48px; border-radius:8px; object-fit:cover; background:#38392e; }
+    .result-name { flex:1; min-width:0; }
+    .result-name strong { display:block; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .result-name span { display:block; margin-top:4px; color:var(--muted); font-size:11px; }
+    .result-score { color:var(--lime); font-size:12px; font-weight:800; white-space:nowrap; }
+    .results-actions { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+    .share-status { color:var(--muted); font-size:11px; }
+    .answer-backdrop { position: fixed; z-index: 20; inset: 0; display: none; place-items: center; padding: 20px; background: rgba(0,0,0,.76); backdrop-filter: blur(8px); }
+    .answer-backdrop.open { display: grid; }
+    .answer-modal { width: min(420px, 100%); padding: 26px; border-radius: 14px; background: #202020; box-shadow: 0 24px 90px rgba(0,0,0,.6); animation: modal-in .18s ease-out; }
+    @keyframes modal-in { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .answer-kicker { color: var(--muted); font-size: 12px; font-weight: 700; }
+    .answer-cover { display: block; width: 100%; aspect-ratio: 1; max-height: 260px; margin: 18px auto; border-radius: 8px; object-fit: cover; background: linear-gradient(145deg, #245c3a, #172a20); }
+    .answer-cover img { display: block; width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
+    .answer-cover-placeholder { display: grid; place-items: center; color: rgba(255,255,255,.85); font-size: 80px; }
+    .answer-title { margin: 0; font-size: 25px; letter-spacing: -.04em; }
+    .answer-artist { margin: 6px 0 18px; color: var(--muted); font-size: 14px; }
+    .answer-points { margin: 0 0 19px; color: var(--lime); font-size: 33px; font-weight: 850; letter-spacing: -.04em; }
+    .answer-points small { display: block; margin-bottom: 3px; color: var(--muted); font-size: 10px; letter-spacing: .12em; }
+    .answer-actions { display: flex; gap: 10px; align-items: center; }
+    .answer-actions .primary-btn { flex: 1; }
+    .answer-countdown { min-width: 115px; color: var(--muted); text-align: right; font-size: 11px; }
+    .answer-modal .replay-btn { width: 100%; margin-bottom: 12px; }
+    @media (max-width: 760px) {
+      .shell { width: min(100% - 28px, 600px); }
+      header { height: 72px; }
+      main { padding-top: 38px; }
+      .home-hero { grid-template-columns: 1fr; gap: 22px; }
+      .home-art { min-height: 145px; }
+      .game-grid { grid-template-columns: 1fr; }
+      .play-card { padding: 20px; }
+      .side-card { padding: 19px; }
+      .audio-box { min-height: 150px; }
+      .round-list { grid-template-columns: 1fr 1fr; }
+      .round-item { min-width: 0; }
+      .round-number { width: 18px; }
+    }
+    @media (max-width: 420px) {
+      .header-date { font-size: 11px; }
+      .round-list { grid-template-columns: 1fr; }
+      .results-header { flex-direction: column; }
+      .total-score { text-align: left; }
+      .answer-modal { padding: 20px; }
+      .answer-cover { max-height: 210px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <a class="brand" href="#" aria-label="Hula home" id="homeLink">
+        <span class="brand-mark">♪</span><span class="brand-name">hula</span>
+      </a>
+      <div class="header-date" id="headerDate"></div>
+    </header>
+    <main>
+      <section class="screen active" id="homeScreen">
+        <div class="home-hero">
+          <div>
+            <h1>Kaya mo ba<br><span>'to?</span></h1>
+            <p class="intro">Guess five songs from short clips. Every extra second costs points.</p>
+          </div>
+            <div class="home-art" aria-hidden="true">
+            <span class="home-art-mark">♪</span>
+            <span class="home-art-title">A little sound.<br>A lot of nostalgia.</span>
+            <span class="home-art-subtitle">Your next favorite song might be one guess away.</span>
+          </div>
+        </div>
+        <div class="mode-tabs" role="tablist" aria-label="Game mode">
+          <button class="tab active" id="dailyTab" role="tab" aria-selected="true">Daily 5</button>
+          <button class="tab" id="endlessTab" role="tab" aria-selected="false">Endless</button>
+        </div>
+        <div class="card welcome-card">
+          <h2 id="welcomeTitle">A new set, every day.</h2>
+          <p id="welcomeDescription">The daily playlist is picked using today's date, so players everywhere get the same five songs. Can you name them from just a split-second snippet?</p>
+          <div class="daily-date" id="dailyDate"></div>
+          <button class="primary-btn" id="startButton">Play today's game →</button>
+        </div>
+      </section>
+
+      <section class="screen" id="gameScreen">
+        <div class="game-grid">
+          <div class="card play-card">
+            <div class="round-head">
+              <div class="round-label"><strong id="roundHeading">Round 1 of 5</strong><span id="endlessStreak"></span></div>
+              <div class="score-pill"><small>ROUND SCORE</small> &nbsp;<span id="scoreValue">10,000</span></div>
+            </div>
+            <div class="progress" id="progressBar" aria-label="Round progress"></div>
+            <div class="audio-box">
+              <div class="wave" id="waveform" aria-hidden="true"></div>
+              <button class="play-snippet" id="playButton" aria-label="Play the 0.1 second clip" disabled>▶</button>
+              <div class="audio-caption" id="audioCaption">0.1-second clip · 10,000 points</div>
+              <div class="audio-seeker">
+                <span id="seekCurrentTime">0:00</span>
+                <input id="audioSeek" type="range" min="0" max="1000" value="0" aria-label="Seek within preview" disabled>
+                <span id="seekEndTime">0:00</span>
+              </div>
+            </div>
+            <div class="controls-label">Need another clue? Reveal more of the song</div>
+            <div class="reveal-row">
+              <button class="reveal-btn" id="revealNextButton" disabled>Reveal 0.5s</button>
+              <div class="reveal-select-wrap">
+                <select class="reveal-select" id="revealSelect" aria-label="Choose clip length" disabled></select>
+              </div>
+            </div>
+            <div class="guess-area">
+              <label for="guessInput">What's the song?</label>
+              <div class="suggestions">
+                <input class="guess-input" id="guessInput" type="search" autocomplete="off" placeholder="Type a song or artist..." aria-autocomplete="list" aria-controls="suggestionList">
+                <div class="suggestion-list" id="suggestionList" role="listbox"></div>
+              </div>
+              <div class="guess-note" id="guessNote" aria-live="polite">Search the song catalog and pick a match.</div>
+              <div class="action-row">
+                <button class="submit-btn" id="guessButton">Lock in guess</button>
+                <button class="skip-btn" id="skipButton">Skip song — forfeit points</button>
+              </div>
+            </div>
+          </div>
+          <aside class="card side-card">
+            <div class="side-heading"><h2 id="sideTitle">Today's playlist</h2><span id="sideSub">5 songs</span></div>
+            <div class="round-list" id="roundList"></div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="screen" id="resultsScreen">
+        <div class="card results-card">
+          <div class="results-header">
+            <div><h2 id="resultsTitle">Galing mo!</h2><p class="results-lede" id="resultsDescription">You made it through today's five songs.</p></div>
+            <div class="total-score"><strong id="totalScore">0</strong><span>POINTS EARNED</span></div>
+          </div>
+          <div class="results-list" id="resultsList"></div>
+          <div class="results-actions">
+            <button class="primary-btn" id="shareButton">Share results ↗</button>
+            <button class="secondary-btn" id="againButton">Play again</button>
+            <span class="share-status" id="shareStatus" aria-live="polite"></span>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <div class="answer-backdrop" id="answerBackdrop">
+    <section class="answer-modal" role="dialog" aria-modal="true" aria-labelledby="answerTitle" aria-describedby="answerArtist">
+      <div class="answer-kicker" id="answerKicker">Correct</div>
+      <div class="answer-cover answer-cover-placeholder" id="answerCover" aria-hidden="true">♪</div>
+      <h2 class="answer-title" id="answerTitle"></h2>
+      <p class="answer-artist" id="answerArtist"></p>
+      <p class="answer-points"><small>POINTS WON</small><span id="answerPoints"></span></p>
+      <button class="replay-btn" id="answerReplay" type="button">↻ Replay answer snippet</button>
+      <div class="answer-actions">
+        <button class="primary-btn" id="continueButton" type="button">Continue</button>
+        <span class="answer-countdown" id="answerCountdown">Next in 10s</span>
+      </div>
+    </section>
+  </div>
+  <audio id="audioPlayer" preload="none"></audio>
+  <script>
+    const SONGS = [
+      { title: "Tala", artist: "Sarah Geronimo", popularity: 98, previewStartSeconds: 0.5 },
+      { title: "Pantropiko", artist: "BINI", popularity: 98 },
+      { title: "Dynamite", artist: "BTS", popularity: 98 },
+      { title: "Lagi", artist: "BINI", popularity: 97 },
+      { title: "MAPA", artist: "SB19", popularity: 97 },
+      { title: "Huwag Muna Tayong Umuwi", artist: "BINI", popularity: 96 },
+      { title: "Pasilyo", artist: "Sunkissed Lola", popularity: 96 },
+      { title: "Raining in Manila", artist: "Lola Amour", popularity: 96 },
+      { title: "Pano", artist: "Zack Tabudlo", popularity: 95 },
+      { title: "Binibini", artist: "Zack Tabudlo", popularity: 95 },
+      { title: "Multo", artist: "Cup of Joe", popularity: 94 },
+      { title: "Araw-Araw", artist: "Ben&Ben", popularity: 94 },
+      { title: "Mundo", artist: "IV Of Spades", popularity: 94 },
+      { title: "Na Na Na", artist: "BINI", popularity: 93 },
+      { title: "Tingin", artist: "Cup of Joe & Janine Teñoso", popularity: 93 },
+      { title: "Mahika", artist: "Adie & Janine Berdin", popularity: 92 },
+      { title: "Dahil Sa'yo", artist: "Inigo Pascual", popularity: 92 },
+      { title: "Gento", artist: "SB19", popularity: 92 },
+      { title: "Karera", artist: "BINI", popularity: 91 },
+      { title: "Give Me Your Forever", artist: "Zack Tabudlo", popularity: 91 },
+      { title: "You'll Be Safe Here", artist: "Rivermaya", popularity: 90 },
+      { title: "With A Smile", artist: "Eraserheads", popularity: 90 },
+      { title: "Sa Susunod na Habang Buhay", artist: "Ben&Ben", popularity: 89 },
+      { title: "Huling Sandali", artist: "December Avenue", popularity: 89 },
+      { title: "Kisapmata", artist: "Rivermaya", popularity: 89 },
+      { title: "Buwan", artist: "Juan Karlos", popularity: 88 },
+      { title: "Paubaya", artist: "Moira Dela Torre", popularity: 88 },
+      { title: "The Day You Said Goodnight", artist: "Hale", popularity: 87 },
+      { title: "Paraluman", artist: "Adie", popularity: 87 },
+      { title: "Migraine", artist: "Moonstar88", popularity: 86 },
+      { title: "Tadhana", artist: "Up Dharma Down", popularity: 85 },
+      { title: "Rainbow", artist: "South Border", popularity: 85 },
+      { title: "Maharani", artist: "Alamat", popularity: 84 },
+      { title: "Salamin, Salamin", artist: "BINI", popularity: 84 },
+      { title: "Leaves", artist: "Ben&Ben", popularity: 83 },
+      { title: "Sining", artist: "Dionela", popularity: 82 },
+      { title: "Uhaw", artist: "Dilaw", popularity: 81 },
+      { title: "Sila", artist: "SUD", popularity: 80 },
+      { title: "Tahanan", artist: "Adie", popularity: 80 },
+      { title: "Misteryoso", artist: "Cup of Joe", popularity: 79 },
+      { title: "Sundo", artist: "Imago", popularity: 78 },
+      { title: "Kung 'Di Rin Lang Ikaw", artist: "December Avenue & Moira Dela Torre", popularity: 78 },
+      { title: "214", artist: "Rivermaya", popularity: 77 },
+      { title: "Hawak Kamay", artist: "Yeng Constantino", popularity: 77 },
+      { title: "Huling Sayaw", artist: "Kamikazee", popularity: 76 },
+      { title: "Kathang Isip", artist: "Ben&Ben", popularity: 75 },
+      { title: "Alapaap", artist: "Eraserheads", popularity: 75 },
+      { title: "Minsan", artist: "Eraserheads", popularity: 73 },
+      { title: "Harana", artist: "Parokya ni Edgar", popularity: 73 },
+      { title: "Narda", artist: "Kamikazee", popularity: 72 },
+      { title: "Your Universe", artist: "Rico Blanco", popularity: 71 },
+      { title: "Umaaraw, Umuulan", artist: "Rivermaya", popularity: 70 },
+      { title: "Rosas", artist: "Nica del Rosario", popularity: 68 },
+      { title: "Titibo-tibo", artist: "Moira Dela Torre", popularity: 68 },
+      { title: "Dati", artist: "Sam Concepcion, Tippy Dos Santos & Quest", popularity: 66 },
+      { title: "Gitara", artist: "Parokya ni Edgar", popularity: 65 },
+      { title: "Buloy", artist: "Parokya ni Edgar", popularity: 64 },
+      { title: "Oo", artist: "Up Dharma Down", popularity: 63 },
+      { title: "Huwag Na Huwag Mong Sasabihin", artist: "Kitchie Nadal", popularity: 62 },
+      { title: "Same Ground", artist: "Kitchie Nadal", popularity: 61 },
+      { title: "Torete", artist: "Moonstar88", popularity: 60 },
+      { title: "Ang Huling El Bimbo", artist: "Eraserheads", popularity: 59 },
+      { title: "Pare Ko", artist: "Eraserheads", popularity: 58 },
+      { title: "Liwanag sa Dilim", artist: "Rivermaya", popularity: 57 },
+      { title: "Mr. Suave", artist: "Parokya ni Edgar", popularity: 56 },
+      { title: "Balisong", artist: "Rivermaya", popularity: 55 },
+      { title: "Sana", artist: "I Belong to the Zoo", popularity: 53 },
+      { title: "Fallen", artist: "Lola Amour", popularity: 52 },
+      { title: "Jeepney", artist: "Kala", popularity: 50 },
+      { title: "Before I Let You Go", artist: "Freestyle", popularity: 49 },
+      { title: "Sige", artist: "6cyclemind", popularity: 48 },
+      { title: "Esem", artist: "Yano", popularity: 47 },
+      { title: "Umaasa", artist: "Calein", popularity: 46 },
+      { title: "Sa Ngalan ng Pag-ibig", artist: "December Avenue", popularity: 45 },
+      { title: "Paki Sabi", artist: "Sunkissed Lola", popularity: 43 },
+      { title: "Maybe The Night", artist: "Ben&Ben", popularity: 42 },
+      { title: "Orasa", artist: "Dilaw", popularity: 40 },
+      { title: "Huwag Kang Matakot", artist: "Eraserheads", popularity: 39 },
+      { title: "Dati-Dati", artist: "Teejay Marquez", popularity: 37 },
+      { title: "Kahit Kailan", artist: "South Border", popularity: 36 },
+      { title: "Tayo Lang Ang May Alam", artist: "Peryodiko", popularity: 35 },
+      { title: "Burnout", artist: "Sugarfree", popularity: 33 },
+      { title: "Wag Mong Aminin", artist: "Rico Blanco", popularity: 32 },
+      { title: "Waltz of Four Left Feet", artist: "Shirebound & Busking", popularity: 30 },
+      { title: "Umaapaw", artist: "Ang Bandang Shirley", popularity: 27 },
+      { title: "Indak", artist: "UDD", popularity: 25 },
+      { title: "Banal na Aso, Santong Kabayo", artist: "Yano", popularity: 24 },
+      { title: "Sampaguita", artist: "Juan Karlos", popularity: 22 },
+      { title: "Dulo ng Hangganan", artist: "IV Of Spades", popularity: 20 },
+      { title: "Huling Pahina", artist: "Cup of Joe", popularity: 19 },
+      { title: "Tulog Na", artist: "Sugarfree", popularity: 18 },
+      { title: "Antukin", artist: "Rico Blanco", popularity: 16 },
+      { title: "Pangako", artist: "Regine Velasquez", popularity: 15 },
+      { title: "Bawat Daan", artist: "Ebe Dancel", popularity: 14 },
+      { title: "Suntok sa Buwan", artist: "Session Road", popularity: 12 },
+      { title: "Heaven Knows", artist: "Orange & Lemons", popularity: 11 },
+      { title: "Teka Lang", artist: "Emman", popularity: 10 },
+      { title: "Nakakapagpabagabag", artist: "DASU", popularity: 8 },
+      { title: "Pahintulot", artist: "Shirebound & Busking", popularity: 6 },
+      { title: "Dumaloy", artist: "SUD", popularity: 4 },
+      { title: "Sana'y Di Na Lang", artist: "The Itchyworms", popularity: 2 }
+    ];
+    const MAX_SCORE = 10000;
+    const FREE_SECONDS = 0.1;
+    const CLIP_STEPS = [0.1, 0.5, 1, 3, 10];
+    const CLIP_SCORES = new Map([[0.1, 10000], [0.5, 9000], [1, 8000], [3, 6000], [10, 4000]]);
+    const MAX_PREVIEW_SECONDS = 30;
+    const EXTRA_REVEAL_STEP_SECONDS = 5;
+    const EXTRA_REVEAL_SCORE_FACTOR = 0.75;
+    const ARTIST_SCORE_MULTIPLIER = 0.3;
+    const UTC_DATE = new Date().toISOString().slice(0, 10);
+    const $ = (id) => document.getElementById(id);
+    const audio = $("audioPlayer");
+    const artworkCache = new Map();
+    let mode = "daily";
+    let songs = [];
+    let roundIndex = 0;
+    let revealedSeconds = FREE_SECONDS;
+    let roundScore = MAX_SCORE;
+    let artistRevealed = false;
+    let hasPlayedClip = false;
+    let roundResults = [];
+    let endlessCount = 0;
+    let isRoundLocked = false;
+    let selectedSuggestion = null;
+    let audioStopTimer = null;
+    let pendingAudioSeekCleanup = null;
+    let playbackGeneration = 0;
+    let roundLoadGeneration = 0;
+    let activeClipStart = 0;
+    let activeClipEnd = 0;
+    let answerCountdownTimer = null;
+    let answerAutoAdvanceTimer = null;
+    let answerModalOpen = false;
+    let selectedRevealValue = String(CLIP_STEPS[1]);
+    let searchTimer = null;
+    let lastArtworkResults = [];
+
+    function hashSeed(value) {
+      let hash = 2166136261;
+      for (let i = 0; i < value.length; i++) {
+        hash ^= value.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+      }
+      return hash >>> 0;
+    }
+    function seededRandom(seed) {
+      return function() {
+        seed += 0x6D2B79F5;
+        let t = seed;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    function shuffle(items, random) {
+      const result = [...items];
+      for (let i = result.length - 1; i > 0; i--) {
+        const j = Math.floor(random() * (i + 1));
+        [result[i], result[j]] = [result[j], result[i]];
+      }
+      return result;
+    }
+    function difficulty(song) {
+      if (song.popularity >= 85) return "Madali";
+      if (song.popularity >= 70) return "Katamtaman";
+      if (song.popularity >= 55) return "Sakto";
+      if (song.popularity >= 35) return "Mahirap";
+      return "Nakakapagpabagabag";
+    }
+    function difficultyClass(song) {
+      return "difficulty-" + normalize(difficulty(song));
+    }
+    function dailyPlaylist() {
+      const ordered = [...SONGS].sort((a, b) => b.popularity - a.popularity);
+      const buckets = [
+        ordered.filter((song) => song.popularity >= 85),
+        ordered.filter((song) => song.popularity >= 70 && song.popularity < 85),
+        ordered.filter((song) => song.popularity >= 55 && song.popularity < 70),
+        ordered.filter((song) => song.popularity >= 35 && song.popularity < 55),
+        ordered.filter((song) => song.popularity < 35)
+      ];
+      const chosen = buckets.map((bucket, index) => shuffle(bucket, seededRandom(hashSeed(UTC_DATE + "-" + index)))[0]);
+      return chosen.map((song) => ({ ...song }));
+    }
+    function formatDate(dateString) {
+      return new Intl.DateTimeFormat("en-PH", { dateStyle: "full", timeZone: "UTC" }).format(new Date(dateString + "T12:00:00Z"));
+    }
+    function showScreen(name) {
+      document.querySelectorAll(".screen").forEach((screen) => screen.classList.toggle("active", screen.id === name));
+    }
+    function closeSuggestions() {
+      $("suggestionList").classList.remove("open");
+    }
+    function currentSong() { return songs[roundIndex]; }
+    function setupHome() {
+      $("headerDate").textContent = formatDate(UTC_DATE);
+      $("dailyDate").textContent = "TODAY · " + formatDate(UTC_DATE);
+      $("homeLink").addEventListener("click", (event) => {
+        event.preventDefault();
+        cancelAnswerModal();
+        roundLoadGeneration++;
+        stopAudio();
+        showScreen("homeScreen");
+      });
+      $("dailyTab").addEventListener("click", () => setMode("daily"));
+      $("endlessTab").addEventListener("click", () => setMode("endless"));
+      $("startButton").addEventListener("click", startGame);
+      $("againButton").addEventListener("click", () => {
+        if (mode === "endless") { startGame(); return; }
+        setMode("daily");
+        showScreen("homeScreen");
+      });
+      $("guessButton").addEventListener("click", submitGuess);
+      $("skipButton").addEventListener("click", () => finishRound(false, true));
+      $("playButton").addEventListener("click", toggleAudioPlayback);
+      $("revealNextButton").addEventListener("click", revealNextClue);
+      $("revealSelect").addEventListener("change", () => {
+        selectedRevealValue = $("revealSelect").value;
+        updateRevealButton();
+      });
+      $("answerReplay").addEventListener("click", () => playAudioFor(10, true));
+      $("continueButton").addEventListener("click", advanceAfterAnswer);
+      $("audioSeek").addEventListener("input", seekWithinPreview);
+      $("guessInput").addEventListener("input", onSearchInput);
+      $("guessInput").addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          if (selectedSuggestion) chooseSuggestion(selectedSuggestion);
+          submitGuess();
+        }
+        if (event.key === "Escape") closeSuggestions();
+      });
+      $("shareButton").addEventListener("click", shareResults);
+      $("suggestionList").addEventListener("mousedown", (event) => event.preventDefault());
+      audio.addEventListener("playing", () => updatePlayButton());
+      audio.addEventListener("pause", () => updatePlayButton());
+      audio.addEventListener("ended", handleAudioEnded);
+      audio.addEventListener("timeupdate", handleAudioTimeUpdate);
+      audio.addEventListener("loadedmetadata", updateAudioSeeker);
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && answerModalOpen) advanceAfterAnswer();
+      });
+    }
+    function setMode(nextMode) {
+      mode = nextMode;
+      const daily = mode === "daily";
+      $("dailyTab").classList.toggle("active", daily);
+      $("endlessTab").classList.toggle("active", !daily);
+      $("dailyTab").setAttribute("aria-selected", String(daily));
+      $("endlessTab").setAttribute("aria-selected", String(!daily));
+      $("welcomeTitle").textContent = daily ? "A new set, every day." : "How far can your ears take you?";
+      $("welcomeDescription").textContent = daily
+        ? "A fresh daily set for everyone. Five songs, picked from the music we love."
+        : "Keep guessing. Each song gets less familiar as your streak grows.";
+      $("dailyDate").textContent = daily ? "TODAY · " + formatDate(UTC_DATE) : "Songs get progressively harder with every round.";
+      $("startButton").textContent = daily ? "Play today's game →" : "Start endless mode →";
+    }
+    function startGame() {
+      stopAudio();
+      roundResults = [];
+      roundIndex = 0;
+      endlessCount = 0;
+      if (mode === "daily") songs = dailyPlaylist();
+      else songs = [pickEndlessSong(0)];
+      showScreen("gameScreen");
+      startRound();
+    }
+    function pickEndlessSong(streak) {
+      const difficultyLevel = Math.min(4, Math.floor(streak / 2));
+      const ranges = [[85, 100], [70, 84], [55, 69], [35, 54], [0, 34]];
+      const [low, high] = ranges[difficultyLevel];
+      const previous = new Set(roundResults.map((result) => result.song.title));
+      let options = SONGS.filter((song) => song.popularity >= low && song.popularity <= high && !previous.has(song.title));
+      if (!options.length) options = SONGS.filter((song) => !previous.has(song.title));
+      if (!options.length) options = SONGS;
+      return { ...options[Math.floor(Math.random() * options.length)] };
+    }
+    function startRound() {
+      roundLoadGeneration++;
+      const loadGeneration = roundLoadGeneration;
+      isRoundLocked = false;
+      selectedSuggestion = null;
+      revealedSeconds = FREE_SECONDS;
+      roundScore = MAX_SCORE;
+      artistRevealed = false;
+      hasPlayedClip = false;
+      selectedRevealValue = String(CLIP_STEPS[1]);
+      $("guessInput").value = "";
+      $("guessInput").disabled = false;
+      $("guessButton").disabled = false;
+      $("skipButton").disabled = false;
+      $("guessNote").textContent = "Search the song catalog and pick a match.";
+      $("guessNote").className = "guess-note";
+      closeSuggestions();
+      setAudioControlsEnabled(false);
+      $("scoreValue").textContent = roundScore.toLocaleString();
+      $("roundHeading").textContent = mode === "daily" ? `Round ${roundIndex + 1} of 5` : `Endless · Song ${endlessCount + 1}`;
+      $("endlessStreak").textContent = mode === "endless" ? ` · ${endlessCount} correct` : "";
+      $("sideTitle").textContent = mode === "daily" ? "Today's playlist" : "Your streak";
+      $("sideSub").textContent = mode === "daily" ? "5 songs" : `${endlessCount} correct`;
+      $("progressBar").innerHTML = mode === "daily"
+        ? Array.from({ length: 5 }, (_, i) => `<span class="${i < roundIndex ? "done" : i === roundIndex ? "current" : ""}"></span>`).join("")
+        : `<span class="current" style="grid-column:1 / -1"></span>`;
+      renderRoundList();
+      renderWaveform();
+      $("audioCaption").textContent = "0.1-second clip · 10,000 points";
+      activeClipStart = Number(currentSong().previewStartSeconds) || 0;
+      activeClipEnd = activeClipStart + revealedSeconds;
+      updateAudioSeeker();
+      updateRevealButton();
+      $("playButton").disabled = true;
+      updatePlayButton();
+      stopAudio();
+      audio.removeAttribute("src");
+      audio.load();
+      loadPreview(currentSong(), loadGeneration);
+    }
+    function renderWaveform() {
+      let seed = hashSeed(currentSong().title + currentSong().artist);
+      const random = seededRandom(seed);
+      $("waveform").innerHTML = Array.from({ length: 41 }, () => `<i style="--h:${9 + Math.round(random() * 33)}px"></i>`).join("");
+    }
+    function renderRoundList() {
+      const count = mode === "daily" ? 5 : Math.max(4, roundResults.length + 1);
+      $("roundList").innerHTML = Array.from({ length: count }, (_, index) => {
+        const result = roundResults[index];
+        const isCurrent = index === roundIndex;
+        const song = result ? result.song : isCurrent ? currentSong() : null;
+        const label = result ? result.song.title : isCurrent ? "Guess this song" : "Up next";
+        const artist = result ? result.song.artist : isCurrent ? "Artist hidden" : "Mystery song";
+        const score = result ? result.score.toLocaleString() : isCurrent ? roundScore.toLocaleString() : "";
+        const difficultyLabel = mode === "daily" && song
+          ? `<span class="difficulty ${difficultyClass(song)}">${escapeHTML(difficulty(song))}</span>`
+          : "";
+        return `<div class="round-item ${isCurrent ? "active" : ""} ${result ? "complete" : ""}">
+          <span class="round-number">${result && result.correct ? "✓" : String(index + 1).padStart(2, "0")}</span>
+          <span class="round-info">${difficultyLabel}<span class="round-song ${!result ? "hidden-song" : ""}">${escapeHTML(label)}</span><span class="round-artist">${escapeHTML(artist)}</span></span>
+          <span class="round-points">${score}</span></div>`;
+      }).join("");
+    }
+    function escapeHTML(value) {
+      return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+    }
+    async function loadPreview(song, loadGeneration) {
+      const isCurrentLoad = () => loadGeneration === roundLoadGeneration && currentSong() === song;
+      const key = `${song.title}|${song.artist}`;
+      let track = artworkCache.get(key);
+      if (!track) {
+        try {
+          const query = encodeURIComponent(`${song.title} ${song.artist}`);
+          const response = await fetch(`https://api.deezer.com/search?q=${query}`);
+          if (!response.ok) throw new Error(`Deezer search failed (${response.status})`);
+          const data = await response.json();
+          let match = findDeezerPreview(data.data || [], song);
+          if (!match) {
+            const titleQuery = encodeURIComponent(song.title);
+            const fallbackResponse = await fetch(`https://api.deezer.com/search?q=${titleQuery}`);
+            if (!fallbackResponse.ok) throw new Error(`Deezer title search failed (${fallbackResponse.status})`);
+            const fallbackData = await fallbackResponse.json();
+            match = findDeezerPreview(fallbackData.data || [], song);
+          }
+          if (match) {
+            track = {
+              previewUrl: match.preview,
+              artworkUrl100: match.album && match.album.cover_medium || ""
+            };
+          }
+        } catch (error) {
+          console.warn("Deezer preview lookup failed; trying iTunes:", error);
+        }
+      }
+      if (!track) {
+        try {
+          const query = encodeURIComponent(`${song.title} ${song.artist}`);
+          const response = await fetch(`https://itunes.apple.com/search?term=${query}&country=ph&entity=song&limit=25`);
+          if (!response.ok) throw new Error(`iTunes search failed (${response.status})`);
+          const data = await response.json();
+          const matches = findPreviewMatches(data.results || [], song);
+          track = matches[0] || null;
+          if (!track) {
+            const titleQuery = encodeURIComponent(song.title);
+            const fallbackResponse = await fetch(`https://itunes.apple.com/search?term=${titleQuery}&country=ph&entity=song&limit=25`);
+            if (!fallbackResponse.ok) throw new Error(`iTunes title search failed (${fallbackResponse.status})`);
+            const fallbackData = await fallbackResponse.json();
+            track = findPreviewMatches(fallbackData.results || [], song)[0] || null;
+          }
+          artworkCache.set(key, track);
+        } catch (error) {
+          console.warn("Song preview lookup failed:", error);
+          if (isCurrentLoad()) {
+            setAudioControlsEnabled(false);
+            setNote("Preview lookup failed. You can still search and guess the song.", "");
+          }
+          return;
+        }
+      }
+      if (!isCurrentLoad()) return;
+      if (!track || !track.previewUrl) {
+        setAudioControlsEnabled(false);
+        setNote("No audio preview is available for this song. You can still guess it.", "");
+        return;
+      }
+      song.previewUrl = track.previewUrl || "";
+      song.artworkUrl = track.artworkUrl100 || "";
+      setAudioControlsEnabled(true);
+      audio.src = song.previewUrl;
+      audio.load();
+      $("guessNote").textContent = "Listen and name the song.";
+      playAudioFor(revealedSeconds, false, false, loadGeneration);
+    }
+    function findDeezerPreview(results, song) {
+      const wantedTitle = normalize(song.title);
+      const primaryArtist = normalize(song.artist.split(/,|&| feat(?:uring)? /i)[0]);
+      const matches = results.filter((item) => {
+        const title = normalize(item.title);
+        const artist = normalize(item.artist && item.artist.name);
+        return (title === wantedTitle || title.startsWith(wantedTitle)) &&
+          (artist.includes(primaryArtist) || primaryArtist.includes(artist)) &&
+          Boolean(item.preview);
+      });
+      matches.sort((a, b) => Number(normalize(b.title) === wantedTitle) - Number(normalize(a.title) === wantedTitle));
+      return matches[0] || null;
+    }
+    function findPreviewMatches(results, song) {
+      const wantedTitle = normalize(song.title);
+      const primaryArtist = normalize(song.artist.split(/,|&| feat(?:uring)? /i)[0]);
+      return results.filter((item) => {
+        const title = normalize(item.trackName);
+        const artist = normalize(item.artistName);
+        const titleMatches = title === wantedTitle || title.startsWith(wantedTitle);
+        const artistMatches = artist.includes(primaryArtist) || primaryArtist.includes(artist);
+        return titleMatches && artistMatches && item.previewUrl;
+      });
+    }
+    function setAudioControlsEnabled(enabled) {
+      $("playButton").disabled = !enabled;
+      $("revealNextButton").disabled = !enabled || artistRevealed;
+      updateRevealButton();
+      updatePlayButton();
+    }
+    function updatePlayButton() {
+      const button = $("playButton");
+      if (button.disabled) {
+        button.textContent = "▶";
+        button.setAttribute("aria-label", "Play clip");
+      } else if (!audio.paused) {
+        button.textContent = "Ⅱ";
+        button.setAttribute("aria-label", "Pause clip");
+      } else if (hasPlayedClip) {
+        button.textContent = "↻";
+        button.setAttribute("aria-label", "Replay clip");
+      } else {
+        button.textContent = "▶";
+        button.setAttribute("aria-label", "Play clip");
+      }
+    }
+    function formatAudioTime(seconds) {
+      if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+      const minutes = Math.floor(seconds / 60);
+      const remainder = seconds - minutes * 60;
+      const formattedSeconds = remainder < 10
+        ? `0${remainder.toFixed(1)}`
+        : String(Math.floor(remainder)).padStart(2, "0");
+      return `${minutes}:${formattedSeconds}`;
+    }
+    function updateAudioSeeker() {
+      const seeker = $("audioSeek");
+      const clipLength = Math.max(0, activeClipEnd - activeClipStart);
+      const elapsed = Math.max(0, Math.min(clipLength, audio.currentTime - activeClipStart));
+      const fraction = clipLength ? elapsed / clipLength : 0;
+      seeker.value = String(Math.round(fraction * 1000));
+      seeker.style.setProperty("--seek-progress", `${fraction * 100}%`);
+      seeker.disabled = $("playButton").disabled || isRoundLocked || audio.readyState < HTMLMediaElement.HAVE_METADATA || clipLength <= 0;
+      $("seekCurrentTime").textContent = formatAudioTime(elapsed);
+      $("seekEndTime").textContent = formatAudioTime(clipLength);
+      seeker.setAttribute("aria-valuetext", `${formatAudioTime(elapsed)} of ${formatAudioTime(clipLength)}`);
+    }
+    function handleAudioTimeUpdate() {
+      updateAudioSeeker();
+      if (!audio.paused && audio.currentTime >= activeClipEnd - 0.015) finishAudioClip();
+    }
+    function handleAudioEnded() {
+      if (audio.currentTime < activeClipEnd) activeClipEnd = audio.currentTime;
+      if (audioStopTimer) clearTimeout(audioStopTimer);
+      audioStopTimer = null;
+      updateAudioSeeker();
+      updatePlayButton();
+    }
+    function finishAudioClip() {
+      if (audioStopTimer) clearTimeout(audioStopTimer);
+      audioStopTimer = null;
+      audio.pause();
+      try {
+        if (audio.currentTime < activeClipEnd) audio.currentTime = activeClipEnd;
+      } catch (error) {
+        console.warn("Could not seek to the end of the preview clip:", error);
+      }
+      updateAudioSeeker();
+    }
+    function seekWithinPreview() {
+      if ($("audioSeek").disabled) return;
+      const clipLength = Math.max(0, activeClipEnd - activeClipStart);
+      const fraction = Number($("audioSeek").value) / 1000;
+      const seekTime = activeClipStart + fraction * clipLength;
+      try {
+        audio.currentTime = seekTime;
+      } catch (error) {
+        setNote("The preview is still loading. Try seeking again in a moment.", "");
+        return;
+      }
+      updateAudioSeeker();
+      if (!audio.paused) scheduleAudioStop(playbackGeneration);
+    }
+    function toggleAudioPlayback() {
+      if (!audio.paused) {
+        playbackGeneration++;
+        if (audioStopTimer) clearTimeout(audioStopTimer);
+        audioStopTimer = null;
+        audio.pause();
+        return;
+      }
+      const resumeFromCurrent = audio.currentTime > activeClipStart && audio.currentTime < activeClipEnd - 0.05;
+      playAudioFor(revealedSeconds, false, resumeFromCurrent);
+    }
+    function updateRevealButton() {
+      const select = $("revealSelect");
+      const options = revealedSeconds < 10
+        ? CLIP_STEPS.filter((seconds) => seconds > revealedSeconds).map(String)
+        : Array.from(
+            { length: Math.floor((MAX_PREVIEW_SECONDS - revealedSeconds) / EXTRA_REVEAL_STEP_SECONDS) },
+            (_, index) => String(revealedSeconds + (index + 1) * EXTRA_REVEAL_STEP_SECONDS)
+          );
+      if (revealedSeconds >= 10 && !artistRevealed) options.push("artist");
+      select.innerHTML = options.map((value) => value === "artist"
+        ? `<option value="artist">Artist · ×${ARTIST_SCORE_MULTIPLIER}</option>`
+        : `<option value="${value}">${Number(value).toFixed(1)}s</option>`).join("");
+      if (options.includes(selectedRevealValue)) {
+        select.value = selectedRevealValue;
+      } else if (options.length) {
+        selectedRevealValue = options[0];
+        select.value = selectedRevealValue;
+      } else {
+        selectedRevealValue = "";
+        select.innerHTML = `<option value="">Max clip</option>`;
+        select.value = "";
+      }
+      select.disabled = $("playButton").disabled || options.length === 0;
+      $("revealNextButton").textContent = selectedRevealValue === "artist"
+        ? `Reveal artist · ×${ARTIST_SCORE_MULTIPLIER}`
+        : selectedRevealValue
+          ? `Reveal ${Number(selectedRevealValue).toFixed(1)}s`
+          : "Max clip reached";
+      $("revealNextButton").disabled = $("playButton").disabled || options.length === 0;
+    }
+    function normalize(value) { return String(value || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
+    function stopAudio() {
+      playbackGeneration++;
+      if (audioStopTimer) clearTimeout(audioStopTimer);
+      audioStopTimer = null;
+      if (pendingAudioSeekCleanup) pendingAudioSeekCleanup();
+      pendingAudioSeekCleanup = null;
+      audio.pause();
+      const song = currentSong();
+      const startAt = song ? Number(song.previewStartSeconds) || 0 : 0;
+      if (audio.readyState >= HTMLMediaElement.HAVE_METADATA) audio.currentTime = startAt;
+      updateAudioSeeker();
+    }
+    function playAudioFor(seconds, allowLocked, resumeFromCurrent = false, expectedRoundGeneration = roundLoadGeneration) {
+      if (!audio.src || (isRoundLocked && !allowLocked)) return;
+      playbackGeneration++;
+      const generation = playbackGeneration;
+      if (audioStopTimer) clearTimeout(audioStopTimer);
+      audioStopTimer = null;
+      if (pendingAudioSeekCleanup) pendingAudioSeekCleanup();
+      pendingAudioSeekCleanup = null;
+      const startAt = Number(currentSong().previewStartSeconds) || 0;
+      const preparePlayback = () => {
+        if (expectedRoundGeneration !== roundLoadGeneration) return Promise.resolve(false);
+        const duration = Number.isFinite(audio.duration) ? audio.duration : Infinity;
+        activeClipStart = startAt;
+        activeClipEnd = Math.min(startAt + seconds, duration);
+        const target = resumeFromCurrent
+          ? Math.max(activeClipStart, Math.min(audio.currentTime, activeClipEnd))
+          : activeClipStart;
+        audio.currentTime = target;
+        updateAudioSeeker();
+        return Promise.resolve(true);
+      };
+      const seekToStart = audio.readyState >= HTMLMediaElement.HAVE_METADATA
+        ? (() => {
+            try {
+              return preparePlayback();
+            } catch (error) {
+              return Promise.reject(error);
+            }
+          })()
+        : new Promise((resolve, reject) => {
+            const onMetadata = () => {
+              cleanup();
+              if (generation !== playbackGeneration || expectedRoundGeneration !== roundLoadGeneration) return resolve(false);
+              try {
+                preparePlayback().then(resolve, reject);
+              } catch (error) {
+                reject(error);
+              }
+            };
+            const onError = () => {
+              cleanup();
+              reject(new Error("Audio metadata could not be loaded."));
+            };
+            const cleanup = () => {
+              audio.removeEventListener("loadedmetadata", onMetadata);
+              audio.removeEventListener("error", onError);
+              if (pendingAudioSeekCleanup === cleanup) pendingAudioSeekCleanup = null;
+            };
+            pendingAudioSeekCleanup = cleanup;
+            audio.addEventListener("loadedmetadata", onMetadata, { once: true });
+            audio.addEventListener("error", onError, { once: true });
+          });
+      seekToStart.then(() => {
+        if (generation !== playbackGeneration || expectedRoundGeneration !== roundLoadGeneration) return;
+        return audio.play();
+      }).then(() => {
+        if (generation !== playbackGeneration || expectedRoundGeneration !== roundLoadGeneration) return;
+        hasPlayedClip = true;
+        updatePlayButton();
+        scheduleAudioStop(generation);
+      }).catch((error) => {
+        if (generation !== playbackGeneration || expectedRoundGeneration !== roundLoadGeneration) return;
+        if (error.name === "AbortError") return;
+        console.warn("Audio playback failed:", error);
+        if (!isRoundLocked || allowLocked) setNote("Couldn't play this preview. Use replay to try again.", "error");
+      });
+    }
+    function scheduleAudioStop(generation) {
+      if (audioStopTimer) clearTimeout(audioStopTimer);
+      audioStopTimer = null;
+      if (audio.paused || generation !== playbackGeneration) return;
+      if (audio.currentTime >= activeClipEnd - 0.015) {
+        finishAudioClip();
+        return;
+      }
+      const remaining = Math.max(25, (activeClipEnd - audio.currentTime) * 1000 + 50);
+      audioStopTimer = setTimeout(() => {
+        if (generation !== playbackGeneration) return;
+        scheduleAudioStop(generation);
+      }, remaining);
+    }
+    function playRevealed() {
+      playAudioFor(revealedSeconds, false);
+    }
+    function revealNextClue() {
+      if (isRoundLocked) return;
+      if (!audio.src) {
+        setNote("There is no audio preview to reveal for this song.", "");
+        return;
+      }
+      if (selectedRevealValue === "artist") {
+        artistRevealed = true;
+        roundScore = calculateRoundScore(revealedSeconds);
+        $("guessNote").textContent = "Artist revealed. Take your guess.";
+      } else {
+        const nextSeconds = Number(selectedRevealValue);
+        if (!Number.isFinite(nextSeconds) || nextSeconds <= revealedSeconds || nextSeconds > MAX_PREVIEW_SECONDS) return;
+        revealedSeconds = nextSeconds;
+        roundScore = calculateRoundScore(revealedSeconds);
+        if (revealedSeconds >= 10) {
+          selectedRevealValue = String(Math.min(MAX_PREVIEW_SECONDS, revealedSeconds + EXTRA_REVEAL_STEP_SECONDS));
+        }
+      }
+      const artistText = artistRevealed ? ` · Artist: ${currentSong().artist}` : "";
+      $("audioCaption").textContent = `${revealedSeconds.toFixed(1)}-second clip${artistText} · ${roundScore.toLocaleString()} points`;
+      $("scoreValue").textContent = roundScore.toLocaleString();
+      updateRevealButton();
+      renderRoundList();
+      playRevealed();
+    }
+    function calculateClipScore(seconds) {
+      if (seconds <= 10) return CLIP_SCORES.get(seconds) || 0;
+      const scoreAtTenSeconds = CLIP_SCORES.get(10);
+      const fiveSecondIncrements = (seconds - 10) / EXTRA_REVEAL_STEP_SECONDS;
+      return Math.max(0, Math.round(scoreAtTenSeconds * Math.pow(EXTRA_REVEAL_SCORE_FACTOR, fiveSecondIncrements)));
+    }
+    function calculateRoundScore(seconds) {
+      const clipScore = calculateClipScore(seconds);
+      return artistRevealed ? Math.round(clipScore * ARTIST_SCORE_MULTIPLIER) : clipScore;
+    }
+    function setNote(message, type) {
+      $("guessNote").textContent = message;
+      $("guessNote").className = "guess-note" + (type ? ` ${type}` : "");
+    }
+    function onSearchInput() {
+      const query = $("guessInput").value.trim();
+      selectedSuggestion = null;
+      if (query.length < 2 || isRoundLocked) {
+        closeSuggestions();
+        return;
+      }
+      const normalized = normalize(query);
+      const matches = SONGS.map((song) => ({
+        song,
+        score: normalize(song.title).includes(normalized) ? 2 : normalize(song.artist).includes(normalized) ? 1 : 0
+      })).filter((item) => item.score > 0).sort((a, b) => b.score - a.score || b.song.popularity - a.song.popularity).slice(0, 8);
+      renderSuggestions(matches.map((item) => item.song), query);
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => fetchSearchArtwork(query), 250);
+    }
+    function renderSuggestions(items, query) {
+      const list = $("suggestionList");
+      list.innerHTML = items.map((song, index) => {
+        const track = lastArtworkResults.find((item) => normalize(item.trackName) === normalize(song.title));
+        const image = track && track.artworkUrl100 ? `<img src="${escapeHTML(track.artworkUrl100)}" alt="" loading="lazy">` : '<span class="cover-placeholder"></span>';
+        return `<button class="suggestion" role="option" data-index="${index}">${image}<span><span class="suggestion-title">${escapeHTML(song.title)}</span><span class="suggestion-artist">${escapeHTML(song.artist)}</span></span></button>`;
+      }).join("");
+      list.classList.toggle("open", items.length > 0);
+      list.querySelectorAll(".suggestion").forEach((button, index) => {
+        button.addEventListener("click", () => chooseSuggestion(items[index]));
+      });
+      if (!items.length && query.length >= 2) {
+        setNote("No matching songs in this game's catalog.", "");
+      }
+    }
+    async function fetchSearchArtwork(query) {
+      try {
+        const response = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&country=ph&entity=song&limit=15`);
+        if (!response.ok) return;
+        const data = await response.json();
+        lastArtworkResults = data.results || [];
+        if ($("guessInput").value.trim() === query) onSearchInputArtworkRefresh(query);
+      } catch (error) {
+        console.warn("Artwork lookup failed:", error);
+      }
+    }
+    function onSearchInputArtworkRefresh(query) {
+      const normalized = normalize(query);
+      const matches = SONGS.map((song) => ({
+        song,
+        score: normalize(song.title).includes(normalized) ? 2 : normalize(song.artist).includes(normalized) ? 1 : 0
+      })).filter((item) => item.score > 0).sort((a, b) => b.score - a.score || b.song.popularity - a.song.popularity).slice(0, 8);
+      renderSuggestions(matches.map((item) => item.song), query);
+    }
+    function chooseSuggestion(song) {
+      selectedSuggestion = song;
+      $("guessInput").value = `${song.title} — ${song.artist}`;
+      closeSuggestions();
+      setNote("Selected. Lock in your guess when you're ready.", "");
+    }
+    function submitGuess() {
+      if (isRoundLocked) return;
+      const guess = selectedSuggestion;
+      if (!guess) {
+        setNote("Pick a song from the suggestions before locking in your guess.", "error");
+        $("guessInput").focus();
+        return;
+      }
+      finishRound(normalize(guess.title) === normalize(currentSong().title) && normalize(guess.artist) === normalize(currentSong().artist), false);
+    }
+    function finishRound(correct, skipped) {
+      if (isRoundLocked) return;
+      isRoundLocked = true;
+      roundLoadGeneration++;
+      stopAudio();
+      const song = currentSong();
+      const score = correct ? roundScore : 0;
+      roundResults.push({ song, correct, skipped, score });
+      $("guessButton").disabled = true;
+      $("skipButton").disabled = true;
+      $("guessInput").disabled = true;
+      renderRoundList();
+      $("answerKicker").textContent = correct ? "That's right" : skipped ? "Song skipped" : "Not quite";
+      $("answerTitle").textContent = song.title;
+      $("answerArtist").textContent = song.artist;
+      $("answerPoints").textContent = score.toLocaleString();
+      $("answerCover").innerHTML = song.artworkUrl
+        ? `<img class="answer-cover" src="${escapeHTML(song.artworkUrl)}" alt="">`
+        : "♪";
+      $("answerCover").classList.toggle("answer-cover-placeholder", !song.artworkUrl);
+      $("answerReplay").disabled = !song.previewUrl;
+      $("answerBackdrop").classList.add("open");
+      answerModalOpen = true;
+      let secondsLeft = 10;
+      $("answerCountdown").textContent = `Next in ${secondsLeft}s`;
+      answerCountdownTimer = window.setInterval(() => {
+        secondsLeft--;
+        if (answerModalOpen) $("answerCountdown").textContent = secondsLeft > 0 ? `Next in ${secondsLeft}s` : "Moving on…";
+      }, 1000);
+      answerAutoAdvanceTimer = window.setTimeout(advanceAfterAnswer, 10000);
+      if (song.previewUrl) playAudioFor(Math.min(MAX_PREVIEW_SECONDS, Math.max(10, revealedSeconds)), true);
+      $("continueButton").focus();
+    }
+    function cancelAnswerModal() {
+      if (answerCountdownTimer) clearInterval(answerCountdownTimer);
+      if (answerAutoAdvanceTimer) clearTimeout(answerAutoAdvanceTimer);
+      answerCountdownTimer = null;
+      answerAutoAdvanceTimer = null;
+      answerModalOpen = false;
+      $("answerBackdrop").classList.remove("open");
+    }
+    function advanceAfterAnswer() {
+      if (!answerModalOpen) return;
+      cancelAnswerModal();
+      stopAudio();
+      if (mode === "daily") {
+        if (roundIndex === 4) {
+          showResults();
+          return;
+        }
+        roundIndex++;
+        startRound();
+      } else if (!roundResults[roundResults.length - 1].correct) {
+        showResults();
+      } else {
+        endlessCount++;
+        roundIndex++;
+        songs.push(pickEndlessSong(endlessCount));
+        startRound();
+      }
+    }
+    function showResults() {
+      stopAudio();
+      const total = roundResults.reduce((sum, result) => sum + result.score, 0);
+      const correct = roundResults.filter((result) => result.correct).length;
+      $("resultsTitle").textContent = mode === "daily" ? (correct === 5 ? "Grabe, perfect!" : correct >= 3 ? "ay wow" : "ahahahaha mali") : `${correct} song${correct === 1 ? "" : "s"} in a row`;
+      $("resultsDescription").textContent = mode === "daily"
+        ? `You got ${correct} of 5 songs right. Come back tomorrow for a new set.`
+        : `You correctly guessed ${correct} song${correct === 1 ? "" : "s"} before missing one.`;
+      $("totalScore").textContent = total.toLocaleString();
+      $("resultsList").innerHTML = roundResults.map((result, index) => {
+        const image = result.song.artworkUrl ? `<img src="${escapeHTML(result.song.artworkUrl)}" alt="" loading="lazy">` : '<span class="result-cover"></span>';
+        const tier = mode === "daily" ? ` · ${difficulty(result.song)}` : "";
+        return `<div class="result-item">${image}<span class="result-name"><strong>${escapeHTML(result.song.title)}</strong><span>${escapeHTML(result.song.artist)}${escapeHTML(tier)}</span></span><span class="result-score">${result.correct ? result.score.toLocaleString() : "0"} pts</span></div>`;
+      }).join("");
+      $("shareStatus").textContent = "";
+      $("againButton").textContent = mode === "daily" ? "Back to daily game" : "Try endless again";
+      showScreen("resultsScreen");
+    }
+    async function shareResults() {
+      const total = roundResults.reduce((sum, result) => sum + result.score, 0);
+      const correct = roundResults.filter((result) => result.correct).length;
+      const title = mode === "daily" ? `Hula ${UTC_DATE}` : "Hula Endless";
+      const shareText = `${title} · ${correct}/${roundResults.length} songs · ${total.toLocaleString()} points\n${roundResults.map((result) => result.correct ? "🟩" : "⬛").join("")}\nKaya mo ba 'to?`;
+      try {
+        if (navigator.share) await navigator.share({ title: "Hula", text: shareText, url: location.href });
+        else if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(`${shareText}\n${location.href}`);
+          $("shareStatus").textContent = "Copied your result to the clipboard!";
+        } else {
+          window.prompt("Copy your result to share:", `${shareText}\n${location.href}`);
+        }
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          console.error("Could not share result:", error);
+          $("shareStatus").textContent = "Sharing didn't work. You can copy your score from the page.";
+        }
+      }
+    }
+    setupHome();
+    setMode("daily");
+  </script>
+</body>
+</html>
