@@ -461,7 +461,8 @@
     const EXTRA_REVEAL_STEP_SECONDS = 5;
     const EXTRA_REVEAL_SCORE_FACTOR = 0.75;
     const ARTIST_SCORE_MULTIPLIER = 0.3;
-    const UTC_DATE = new Date().toISOString().slice(0, 10);
+    const PHILIPPINE_TIME_ZONE = "Asia/Manila";
+    let dailyDateKey = getPhilippineDateKey();
     const $ = (id) => document.getElementById(id);
     const audio = $("audioPlayer");
     const artworkCache = new Map();
@@ -496,6 +497,16 @@
         hash = Math.imul(hash, 16777619);
       }
       return hash >>> 0;
+    }
+    function getPhilippineDateKey() {
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: PHILIPPINE_TIME_ZONE,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+      }).formatToParts(new Date());
+      const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+      return `${values.year}-${values.month}-${values.day}`;
     }
     function seededRandom(seed) {
       return function() {
@@ -533,11 +544,24 @@
         ordered.filter((song) => song.popularity >= 35 && song.popularity < 55),
         ordered.filter((song) => song.popularity < 35)
       ];
-      const chosen = buckets.map((bucket, index) => shuffle(bucket, seededRandom(hashSeed(UTC_DATE + "-" + index)))[0]);
+      const chosen = buckets.map((bucket, index) => shuffle(bucket, seededRandom(hashSeed(dailyDateKey + "-" + index)))[0]);
       return chosen.map((song) => ({ ...song }));
     }
     function formatDate(dateString) {
-      return new Intl.DateTimeFormat("en-PH", { dateStyle: "full", timeZone: "UTC" }).format(new Date(dateString + "T12:00:00Z"));
+      return new Intl.DateTimeFormat("en-PH", { dateStyle: "full", timeZone: PHILIPPINE_TIME_ZONE }).format(new Date(dateString + "T12:00:00Z"));
+    }
+    function checkDailyRollover() {
+      const currentDateKey = getPhilippineDateKey();
+      if (currentDateKey === dailyDateKey) return;
+      dailyDateKey = currentDateKey;
+      $("headerDate").textContent = formatDate(dailyDateKey);
+      setMode(mode);
+      if (mode === "daily" && !$("homeScreen").classList.contains("active")) {
+        cancelAnswerModal();
+        roundLoadGeneration++;
+        stopAudio();
+        showScreen("homeScreen");
+      }
     }
     function showScreen(name) {
       document.querySelectorAll(".screen").forEach((screen) => screen.classList.toggle("active", screen.id === name));
@@ -547,8 +571,8 @@
     }
     function currentSong() { return songs[roundIndex]; }
     function setupHome() {
-      $("headerDate").textContent = formatDate(UTC_DATE);
-      $("dailyDate").textContent = "TODAY · " + formatDate(UTC_DATE);
+      $("headerDate").textContent = formatDate(dailyDateKey);
+      $("dailyDate").textContent = "TODAY · " + formatDate(dailyDateKey);
       $("homeLink").addEventListener("click", (event) => {
         event.preventDefault();
         cancelAnswerModal();
@@ -606,10 +630,11 @@
       $("welcomeDescription").textContent = daily
         ? "A fresh daily set for everyone. Five songs, picked from the music we love."
         : "Keep guessing. Each song gets less familiar as your streak grows.";
-      $("dailyDate").textContent = daily ? "TODAY · " + formatDate(UTC_DATE) : "Songs get progressively harder with every round.";
+      $("dailyDate").textContent = daily ? "TODAY · " + formatDate(dailyDateKey) : "Songs get progressively harder with every round.";
       $("startButton").textContent = daily ? "Play today's game →" : "Start endless mode →";
     }
     function startGame() {
+      checkDailyRollover();
       stopAudio();
       roundResults = [];
       roundIndex = 0;
@@ -1191,7 +1216,7 @@
     async function shareResults() {
       const total = roundResults.reduce((sum, result) => sum + result.score, 0);
       const correct = roundResults.filter((result) => result.correct).length;
-      const title = mode === "daily" ? `Hula ${UTC_DATE}` : "Hula Endless";
+      const title = mode === "daily" ? `Hula ${dailyDateKey}` : "Hula Endless";
       const shareText = `${title} · ${correct}/${roundResults.length} songs · ${total.toLocaleString()} points\n${roundResults.map((result) => result.correct ? "🟩" : "⬛").join("")}\nKaya mo ba 'to?`;
       try {
         if (navigator.share) await navigator.share({ title: "Hula", text: shareText, url: location.href });
@@ -1210,6 +1235,10 @@
     }
     setupHome();
     setMode("daily");
+    window.setInterval(checkDailyRollover, 15000);
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) checkDailyRollover();
+    });
   </script>
 </body>
 </html>
