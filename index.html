@@ -140,10 +140,12 @@
       width: 100%; padding: 9px 11px; display: flex; align-items: center; gap: 11px;
       text-align: left; background: transparent; border: 0; border-bottom: 1px solid rgba(255,255,255,.06); cursor: pointer;
     }
-    .suggestion:hover { background: #303129; }
+    .suggestion:hover, .suggestion.highlighted { background: #303129; }
     .suggestion img, .cover-placeholder { width: 42px; height: 42px; border-radius: 7px; object-fit: cover; background: #393a30; flex: 0 0 42px; }
     .suggestion-title { display: block; font-size: 13px; font-weight: 760; }
     .suggestion-artist { display: block; color: var(--muted); font-size: 11px; margin-top: 3px; }
+    .suggestion-copy { min-width: 0; }
+    .suggestion-enter-hint { margin-left: auto; padding: 4px 7px; border: 1px solid #555; border-radius: 4px; color: var(--muted); font-size: 10px; white-space: nowrap; }
     .guess-note { min-height: 20px; margin-top: 8px; color: var(--muted); font-size: 11px; }
     .guess-note.error { color: var(--red); }
     .guess-note.success { color: var(--lime); }
@@ -188,6 +190,8 @@
     .welcome-card > p, .results-lede { color: var(--muted); line-height: 1.65; max-width: 590px; }
     .daily-date { margin: 22px 0 14px; color: var(--muted); font-size: 12px; }
     .catalog-status { min-height: 18px; margin: -6px 0 12px; color: var(--muted); font-size: 11px; }
+    .daily-completion { margin: 8px 0 14px; color: var(--lime); font-size: 12px; line-height: 1.6; }
+    .result-answer { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; }
     .results-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
     .total-score { min-width: 135px; padding: 14px 17px; background: #282b20; border: 1px solid #414633; border-radius: 14px; text-align: right; }
     .total-score strong { display: block; color: var(--lime); font-size: 27px; letter-spacing: -.05em; }
@@ -268,9 +272,10 @@
         </div>
         <div class="card welcome-card">
           <h2 id="welcomeTitle">A new set, every day.</h2>
-          <p id="welcomeDescription">The daily playlist is picked from the Philippines Top Songs chart. Can you name five tracks from just a split-second snippet?</p>
+          <p id="welcomeDescription">Five OPM, P-pop, and Filipino favorites spanning generations. Can you name them from just a split-second snippet?</p>
           <div class="daily-date" id="dailyDate"></div>
-          <p class="catalog-status" id="catalogStatus" aria-live="polite">Loading songs from the Philippines Top Songs chart...</p>
+          <p class="daily-completion" id="dailyCompletionNotice" hidden></p>
+          <p class="catalog-status" id="catalogStatus" aria-live="polite">Loading Filipino and OPM songs...</p>
           <button class="primary-btn" id="startButton" disabled>Play today's game →</button>
           <button class="secondary-btn" id="retryCatalogButton" type="button" hidden>Retry chart loading</button>
         </div>
@@ -304,10 +309,10 @@
             <div class="guess-area">
               <label for="guessInput">What's the song?</label>
               <div class="suggestions">
-                <input class="guess-input" id="guessInput" type="search" autocomplete="off" placeholder="Type a song or artist..." aria-autocomplete="list" aria-controls="suggestionList">
+                <input class="guess-input" id="guessInput" type="search" autocomplete="off" placeholder="Type a song or artist..." aria-autocomplete="list" aria-controls="suggestionList" aria-activedescendant="">
                 <div class="suggestion-list" id="suggestionList" role="listbox"></div>
               </div>
-              <div class="guess-note" id="guessNote" aria-live="polite">Search Apple Music and pick a match.</div>
+              <div class="guess-note" id="guessNote" aria-live="polite">Search the available songs and pick a match.</div>
               <div class="action-row">
                 <button class="submit-btn" id="guessButton">Lock in guess</button>
                 <button class="skip-btn" id="skipButton">Skip song — forfeit points</button>
@@ -324,7 +329,7 @@
       <section class="screen" id="resultsScreen">
         <div class="card results-card">
           <div class="results-header">
-            <div><h2 id="resultsTitle">Galing mo!</h2><p class="results-lede" id="resultsDescription">You made it through today's five songs.</p></div>
+            <div><h2 id="resultsTitle">Galing mo!</h2><p class="results-lede" id="resultsDescription">You made it through today's five songs.</p><p class="daily-completion" id="resultsDailyNotice" hidden></p></div>
             <div class="total-score"><strong id="totalScore">0</strong><span>POINTS EARNED</span></div>
           </div>
           <div class="results-list" id="resultsList"></div>
@@ -353,114 +358,13 @@
   </div>
   <audio id="audioPlayer" preload="none"></audio>
   <script>
-    const FALLBACK_SONGS = [
-      { title: "Tala", artist: "Sarah Geronimo", popularity: 98, previewStartSeconds: 0.5 },
-      { title: "Pantropiko", artist: "BINI", popularity: 98 },
-      { title: "Dynamite", artist: "BTS", popularity: 98 },
-      { title: "Lagi", artist: "BINI", popularity: 97 },
-      { title: "MAPA", artist: "SB19", popularity: 97 },
-      { title: "Huwag Muna Tayong Umuwi", artist: "BINI", popularity: 96 },
-      { title: "Pasilyo", artist: "Sunkissed Lola", popularity: 96 },
-      { title: "Raining in Manila", artist: "Lola Amour", popularity: 96 },
-      { title: "Pano", artist: "Zack Tabudlo", popularity: 95 },
-      { title: "Binibini", artist: "Zack Tabudlo", popularity: 95 },
-      { title: "Multo", artist: "Cup of Joe", popularity: 94 },
-      { title: "Araw-Araw", artist: "Ben&Ben", popularity: 94 },
-      { title: "Mundo", artist: "IV Of Spades", popularity: 94 },
-      { title: "Na Na Na", artist: "BINI", popularity: 93 },
-      { title: "Tingin", artist: "Cup of Joe & Janine Teñoso", popularity: 93 },
-      { title: "Mahika", artist: "Adie & Janine Berdin", popularity: 92 },
-      { title: "Dahil Sa'yo", artist: "Inigo Pascual", popularity: 92 },
-      { title: "Gento", artist: "SB19", popularity: 92 },
-      { title: "Karera", artist: "BINI", popularity: 91 },
-      { title: "Give Me Your Forever", artist: "Zack Tabudlo", popularity: 91 },
-      { title: "You'll Be Safe Here", artist: "Rivermaya", popularity: 90 },
-      { title: "With A Smile", artist: "Eraserheads", popularity: 90 },
-      { title: "Sa Susunod na Habang Buhay", artist: "Ben&Ben", popularity: 89 },
-      { title: "Huling Sandali", artist: "December Avenue", popularity: 89 },
-      { title: "Kisapmata", artist: "Rivermaya", popularity: 89 },
-      { title: "Buwan", artist: "Juan Karlos", popularity: 88 },
-      { title: "Paubaya", artist: "Moira Dela Torre", popularity: 88 },
-      { title: "The Day You Said Goodnight", artist: "Hale", popularity: 87 },
-      { title: "Paraluman", artist: "Adie", popularity: 87 },
-      { title: "Migraine", artist: "Moonstar88", popularity: 86 },
-      { title: "Tadhana", artist: "Up Dharma Down", popularity: 85 },
-      { title: "Rainbow", artist: "South Border", popularity: 85 },
-      { title: "Maharani", artist: "Alamat", popularity: 84 },
-      { title: "Salamin, Salamin", artist: "BINI", popularity: 84 },
-      { title: "Leaves", artist: "Ben&Ben", popularity: 83 },
-      { title: "Sining", artist: "Dionela", popularity: 82 },
-      { title: "Uhaw", artist: "Dilaw", popularity: 81 },
-      { title: "Sila", artist: "SUD", popularity: 80 },
-      { title: "Tahanan", artist: "Adie", popularity: 80 },
-      { title: "Misteryoso", artist: "Cup of Joe", popularity: 79 },
-      { title: "Sundo", artist: "Imago", popularity: 78 },
-      { title: "Kung 'Di Rin Lang Ikaw", artist: "December Avenue & Moira Dela Torre", popularity: 78 },
-      { title: "214", artist: "Rivermaya", popularity: 77 },
-      { title: "Hawak Kamay", artist: "Yeng Constantino", popularity: 77 },
-      { title: "Huling Sayaw", artist: "Kamikazee", popularity: 76 },
-      { title: "Kathang Isip", artist: "Ben&Ben", popularity: 75 },
-      { title: "Alapaap", artist: "Eraserheads", popularity: 75 },
-      { title: "Minsan", artist: "Eraserheads", popularity: 73 },
-      { title: "Harana", artist: "Parokya ni Edgar", popularity: 73 },
-      { title: "Narda", artist: "Kamikazee", popularity: 72 },
-      { title: "Your Universe", artist: "Rico Blanco", popularity: 71 },
-      { title: "Umaaraw, Umuulan", artist: "Rivermaya", popularity: 70 },
-      { title: "Rosas", artist: "Nica del Rosario", popularity: 68 },
-      { title: "Titibo-tibo", artist: "Moira Dela Torre", popularity: 68 },
-      { title: "Dati", artist: "Sam Concepcion, Tippy Dos Santos & Quest", popularity: 66 },
-      { title: "Gitara", artist: "Parokya ni Edgar", popularity: 65 },
-      { title: "Buloy", artist: "Parokya ni Edgar", popularity: 64 },
-      { title: "Oo", artist: "Up Dharma Down", popularity: 63 },
-      { title: "Huwag Na Huwag Mong Sasabihin", artist: "Kitchie Nadal", popularity: 62 },
-      { title: "Same Ground", artist: "Kitchie Nadal", popularity: 61 },
-      { title: "Torete", artist: "Moonstar88", popularity: 60 },
-      { title: "Ang Huling El Bimbo", artist: "Eraserheads", popularity: 59 },
-      { title: "Pare Ko", artist: "Eraserheads", popularity: 58 },
-      { title: "Liwanag sa Dilim", artist: "Rivermaya", popularity: 57 },
-      { title: "Mr. Suave", artist: "Parokya ni Edgar", popularity: 56 },
-      { title: "Balisong", artist: "Rivermaya", popularity: 55 },
-      { title: "Sana", artist: "I Belong to the Zoo", popularity: 53 },
-      { title: "Fallen", artist: "Lola Amour", popularity: 52 },
-      { title: "Jeepney", artist: "Kala", popularity: 50 },
-      { title: "Before I Let You Go", artist: "Freestyle", popularity: 49 },
-      { title: "Sige", artist: "6cyclemind", popularity: 48 },
-      { title: "Esem", artist: "Yano", popularity: 47 },
-      { title: "Umaasa", artist: "Calein", popularity: 46 },
-      { title: "Sa Ngalan ng Pag-ibig", artist: "December Avenue", popularity: 45 },
-      { title: "Paki Sabi", artist: "Sunkissed Lola", popularity: 43 },
-      { title: "Maybe The Night", artist: "Ben&Ben", popularity: 42 },
-      { title: "Orasa", artist: "Dilaw", popularity: 40 },
-      { title: "Huwag Kang Matakot", artist: "Eraserheads", popularity: 39 },
-      { title: "Dati-Dati", artist: "Teejay Marquez", popularity: 37 },
-      { title: "Kahit Kailan", artist: "South Border", popularity: 36 },
-      { title: "Tayo Lang Ang May Alam", artist: "Peryodiko", popularity: 35 },
-      { title: "Burnout", artist: "Sugarfree", popularity: 33 },
-      { title: "Wag Mong Aminin", artist: "Rico Blanco", popularity: 32 },
-      { title: "Waltz of Four Left Feet", artist: "Shirebound & Busking", popularity: 30 },
-      { title: "Umaapaw", artist: "Ang Bandang Shirley", popularity: 27 },
-      { title: "Indak", artist: "UDD", popularity: 25 },
-      { title: "Banal na Aso, Santong Kabayo", artist: "Yano", popularity: 24 },
-      { title: "Sampaguita", artist: "Juan Karlos", popularity: 22 },
-      { title: "Dulo ng Hangganan", artist: "IV Of Spades", popularity: 20 },
-      { title: "Huling Pahina", artist: "Cup of Joe", popularity: 19 },
-      { title: "Tulog Na", artist: "Sugarfree", popularity: 18 },
-      { title: "Antukin", artist: "Rico Blanco", popularity: 16 },
-      { title: "Pangako", artist: "Regine Velasquez", popularity: 15 },
-      { title: "Bawat Daan", artist: "Ebe Dancel", popularity: 14 },
-      { title: "Suntok sa Buwan", artist: "Session Road", popularity: 12 },
-      { title: "Heaven Knows", artist: "Orange & Lemons", popularity: 11 },
-      { title: "Teka Lang", artist: "Emman", popularity: 10 },
-      { title: "Nakakapagpabagabag", artist: "DASU", popularity: 8 },
-      { title: "Pahintulot", artist: "Shirebound & Busking", popularity: 6 },
-      { title: "Dumaloy", artist: "SUD", popularity: 4 },
-      { title: "Sana'y Di Na Lang", artist: "The Itchyworms", popularity: 2 }
-    ];
-    let SONGS = FALLBACK_SONGS;
-    const CHART_CACHE_KEY = "hula-ph-chart";
-    const CHART_URL = "https://itunes.apple.com/ph/rss/topsongs/limit=100/json";
+    let SONGS = [];
+    const CATALOG_URL = "./songs.json";
+    const DAILY_PROGRESS_PREFIX = "hula-daily-progress-";
+    const DAILY_COMPLETE_PREFIX = "hula-daily-complete-";
     const MAX_SCORE = 10000;
     const FREE_SECONDS = 0.1;
+    const MEDIA_ERR_ABORTED = 1;
     const CLIP_STEPS = [0.1, 0.5, 1, 3, 10];
     const CLIP_SCORES = new Map([[0.1, 10000], [0.5, 9000], [1, 8000], [3, 6000], [10, 4000]]);
     const MAX_PREVIEW_SECONDS = 30;
@@ -471,8 +375,15 @@
     let dailyDateKey = getPhilippineDateKey();
     const $ = (id) => document.getElementById(id);
     const audio = $("audioPlayer");
-    const artworkCache = new Map();
+    const failedPreviewSongs = new Set();
+    const deezerPreviewCache = new Map();
+    let replacementNotice = "";
+    let deezerCallbackIndex = 0;
+    let activePreviewUrl = "";
     let mode = "daily";
+    let catalogReady = false;
+    let dailyCountdownTimer = null;
+    let previewErrorCleanup = null;
     let songs = [];
     let roundIndex = 0;
     let revealedSeconds = FREE_SECONDS;
@@ -483,6 +394,8 @@
     let endlessCount = 0;
     let isRoundLocked = false;
     let selectedSuggestion = null;
+    let suggestionItems = [];
+    let highlightedSuggestionIndex = -1;
     let audioStopTimer = null;
     let pendingAudioSeekCleanup = null;
     let playbackGeneration = 0;
@@ -493,7 +406,6 @@
     let answerAutoAdvanceTimer = null;
     let answerModalOpen = false;
     let selectedRevealValue = String(CLIP_STEPS[1]);
-    let searchTimer = null;
 
     function hashSeed(value) {
       let hash = 2166136261;
@@ -531,84 +443,167 @@
       return result;
     }
     function difficulty(song) {
-      if (song.popularity >= 85) return "Madali";
-      if (song.popularity >= 70) return "Katamtaman";
-      if (song.popularity >= 55) return "Sakto";
-      if (song.popularity >= 35) return "Mahirap";
+      if (song.score >= 85) return "Madali";
+      if (song.score >= 70) return "Katamtaman";
+      if (song.score >= 55) return "Sakto";
+      if (song.score >= 35) return "Mahirap";
       return "Nakakapagpabagabag";
     }
     function difficultyClass(song) {
       return "difficulty-" + normalize(difficulty(song));
     }
     function dailyPlaylist() {
-      const ordered = [...SONGS].sort((a, b) => b.popularity - a.popularity);
+      const ordered = [...SONGS].sort((a, b) => b.score - a.score);
       const buckets = [
-        ordered.filter((song) => song.popularity >= 85),
-        ordered.filter((song) => song.popularity >= 70 && song.popularity < 85),
-        ordered.filter((song) => song.popularity >= 55 && song.popularity < 70),
-        ordered.filter((song) => song.popularity >= 35 && song.popularity < 55),
-        ordered.filter((song) => song.popularity < 35)
+        ordered.filter((song) => song.score >= 85),
+        ordered.filter((song) => song.score >= 70 && song.score < 85),
+        ordered.filter((song) => song.score >= 55 && song.score < 70),
+        ordered.filter((song) => song.score >= 35 && song.score < 55),
+        ordered.filter((song) => song.score < 35)
       ];
-      const chosen = buckets.map((bucket, index) => shuffle(bucket, seededRandom(hashSeed(dailyDateKey + "-" + index)))[0]);
+      const chosen = [];
+      buckets.forEach((bucket, index) => {
+        let options = bucket.filter((song) => !chosen.includes(song));
+        if (!options.length) {
+          const target = [92, 77, 62, 45, 17][index];
+          options = ordered.filter((song) => !chosen.includes(song))
+            .sort((a, b) => Math.abs(a.score - target) - Math.abs(b.score - target));
+        }
+        const song = shuffle(options, seededRandom(hashSeed(dailyDateKey + "-" + index)))[0];
+        if (song) chosen.push(song);
+      });
       return chosen.map((song) => ({ ...song }));
     }
-    function songsFromChart(entries) {
-      return entries.map((entry, index) => {
-        const image = (entry["im:image"] || []).slice().sort((a, b) =>
-          Number(b.attributes && b.attributes.height || 0) - Number(a.attributes && a.attributes.height || 0)
-        )[0];
-        const preview = (entry.link || []).find((link) => link.attributes && link.attributes.rel === "enclosure");
-        return {
-          title: entry["im:name"] && entry["im:name"].label || "",
-          artist: entry["im:artist"] && entry["im:artist"].label || "",
-          popularity: Math.max(1, 100 - index),
-          trackId: entry.id && entry.id.attributes && entry.id.attributes["im:id"] || "",
-          previewUrl: preview && preview.attributes && preview.attributes.href || "",
-          artworkUrl: image && image.label || ""
-        };
-      }).filter((song) => song.title && song.artist);
-    }
-    async function loadSongCatalog(ignoreCache = false) {
+    async function loadSongCatalog() {
+      catalogReady = false;
       $("startButton").disabled = true;
       $("retryCatalogButton").hidden = true;
-      $("catalogStatus").textContent = "Loading songs from the Philippines Top Songs chart...";
-      if (!ignoreCache) {
-        try {
-          const cached = JSON.parse(localStorage.getItem(CHART_CACHE_KEY) || "null");
-          if (cached && cached.date === dailyDateKey && Array.isArray(cached.songs) && cached.songs.length >= 5) {
-            SONGS = cached.songs;
-            $("catalogStatus").textContent = `Using today's cached Philippines Top Songs chart (${SONGS.length} songs).`;
-            $("startButton").disabled = false;
-            return;
-          }
-        } catch (error) {
-          console.warn("Could not read the cached song chart:", error);
-        }
-      }
+      $("catalogStatus").textContent = "Loading the shared song catalog...";
       try {
-        const response = await fetch(CHART_URL);
-        if (!response.ok) throw new Error(`Apple chart request failed (${response.status})`);
-        const data = await response.json();
-        const chartSongs = songsFromChart(data.feed && data.feed.entry || []);
-        if (chartSongs.length < 5) throw new Error("Apple returned fewer than five chart songs.");
-        SONGS = chartSongs;
-        try {
-          localStorage.setItem(CHART_CACHE_KEY, JSON.stringify({ date: dailyDateKey, songs: chartSongs }));
-        } catch (error) {
-          console.warn("Could not cache the song chart:", error);
+        const response = await fetch(CATALOG_URL, { cache: "no-cache" });
+        if (!response.ok) throw new Error(`Song catalog request failed (${response.status})`);
+        const catalog = await response.json();
+        const brackets = ["Madali", "Katamtaman", "Sakto", "Mahirap", "Nakakapagpabagabag"];
+        if (!catalog.brackets || !brackets.every((bracket) => Array.isArray(catalog.brackets[bracket]))) {
+          throw new Error("The song catalog is missing one or more difficulty brackets.");
         }
-        $("catalogStatus").textContent = `Loaded ${SONGS.length} songs from the Philippines Top Songs chart.`;
-        $("startButton").disabled = false;
+        const allSongs = brackets.flatMap((bracket) => catalog.brackets[bracket]);
+        if (allSongs.some((song) => !song.title || !song.artist || !Number.isFinite(Number(song.score)))) {
+          throw new Error("The song catalog contains an invalid song entry.");
+        }
+        const unplayableCount = allSongs.filter((song) => !song.previewUrl).length;
+        SONGS = allSongs.filter((song) => Boolean(song.previewUrl));
+        if (SONGS.length < 5) throw new Error("The song catalog has fewer than five songs with previews.");
+        $("catalogStatus").textContent =
+          `Loaded ${SONGS.length.toLocaleString()} playable songs from the shared catalog.` +
+          (unplayableCount ? ` ${unplayableCount} songs without previews are excluded.` : "");
       } catch (error) {
-        console.error("Could not load the Philippines Top Songs chart:", error);
-        SONGS = FALLBACK_SONGS;
-        $("catalogStatus").textContent = `Chart unavailable. Using the built-in ${SONGS.length}-song catalog instead.`;
-        $("startButton").disabled = false;
+        SONGS = [];
+        console.error("Could not load the shared song catalog:", error);
+        $("catalogStatus").textContent =
+          "Could not load songs.json. Serve this folder over HTTP and try again.";
         $("retryCatalogButton").hidden = false;
       }
+      catalogReady = SONGS.length >= 5;
+      syncStartButton();
     }
     function formatDate(dateString) {
       return new Intl.DateTimeFormat("en-PH", { dateStyle: "full", timeZone: PHILIPPINE_TIME_ZONE }).format(new Date(dateString + "T12:00:00Z"));
+    }
+    function dailyProgressKey() { return DAILY_PROGRESS_PREFIX + dailyDateKey; }
+    function dailyCompleteKey() { return DAILY_COMPLETE_PREFIX + dailyDateKey; }
+    function readDailyProgress() {
+      try {
+        const progress = JSON.parse(localStorage.getItem(dailyProgressKey()) || "null");
+        return progress && progress.date === dailyDateKey && Array.isArray(progress.songs) &&
+          progress.songs.length === 5 && Array.isArray(progress.roundResults)
+          ? progress : null;
+      } catch (error) {
+        console.warn("Could not read saved Daily 5 progress:", error);
+        return null;
+      }
+    }
+    function hasCompletedDaily() {
+      return Boolean(readDailyCompletion());
+    }
+    function readDailyCompletion() {
+      try {
+        const completion = JSON.parse(localStorage.getItem(dailyCompleteKey()) || "null");
+        return completion && completion.date === dailyDateKey && completion.completed
+          ? completion : null;
+      } catch (error) {
+        console.warn("Could not read Daily 5 completion state:", error);
+        return null;
+      }
+    }
+    function saveDailyProgress(pendingAnswer = false) {
+      if (mode !== "daily" || songs.length !== 5 || hasCompletedDaily()) return;
+      try {
+        localStorage.setItem(dailyProgressKey(), JSON.stringify({
+          date: dailyDateKey,
+          songs,
+          roundResults,
+          roundIndex,
+          revealedSeconds,
+          artistRevealed,
+          roundScore,
+          pendingAnswer
+        }));
+      } catch (error) {
+        console.warn("Could not save Daily 5 progress:", error);
+      }
+    }
+    function completeDailyGame() {
+      if (mode !== "daily" || hasCompletedDaily()) return;
+      try {
+        localStorage.setItem(dailyCompleteKey(), JSON.stringify({
+          date: dailyDateKey,
+          completed: true,
+          completedAt: Date.now(),
+          roundResults
+        }));
+        localStorage.removeItem(dailyProgressKey());
+      } catch (error) {
+        console.warn("Could not save Daily 5 completion:", error);
+      }
+      updateDailyCompletionNotices();
+      syncStartButton();
+    }
+    function countdownToNextDaily() {
+      const todayAtManilaMidnight = new Date(`${dailyDateKey}T00:00:00+08:00`).getTime();
+      const seconds = Math.max(0, Math.floor((todayAtManilaMidnight + 86400000 - Date.now()) / 1000));
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      const remainingSeconds = seconds % 60;
+      return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(remainingSeconds).padStart(2, "0")}`;
+    }
+    function updateDailyCompletionNotices() {
+      const completed = hasCompletedDaily();
+      const text = `You've completed today's Daily 5. Come back in ${countdownToNextDaily()}, then refresh for tomorrow's puzzle.`;
+      ["dailyCompletionNotice", "resultsDailyNotice"].forEach((id) => {
+        const notice = $(id);
+        notice.hidden = !completed;
+        if (completed) notice.textContent = text;
+      });
+    }
+    function syncStartButton() {
+      const completed = mode === "daily" && hasCompletedDaily();
+      const progress = mode === "daily" && !completed ? readDailyProgress() : null;
+      $("startButton").disabled = !catalogReady;
+      $("startButton").textContent = completed ? "View today's results →" : progress
+        ? `Continue Daily 5 · Round ${Math.min(progress.roundIndex + 1, 5)}`
+        : mode === "daily" ? "Play today's game →" : "Start endless mode →";
+      updateDailyCompletionNotices();
+    }
+    function restoreDailyProgressPrompt() {
+      mode = "daily";
+      setMode("daily");
+      const progress = readDailyProgress();
+      if (progress && !hasCompletedDaily()) {
+        $("catalogStatus").textContent =
+          `Saved progress: round ${Math.min(progress.roundIndex + 1, 5)} of 5 · ${Number(progress.roundScore).toLocaleString()} current points.`;
+      }
+      syncStartButton();
     }
     function checkDailyRollover() {
       const currentDateKey = getPhilippineDateKey();
@@ -616,7 +611,7 @@
       dailyDateKey = currentDateKey;
       $("headerDate").textContent = formatDate(dailyDateKey);
       setMode(mode);
-      loadSongCatalog();
+      loadSongCatalog().then(restoreDailyProgressPrompt);
       if (mode === "daily" && !$("homeScreen").classList.contains("active")) {
         cancelAnswerModal();
         roundLoadGeneration++;
@@ -630,11 +625,29 @@
     }
     function closeSuggestions() {
       $("suggestionList").classList.remove("open");
+      $("guessInput").setAttribute("aria-activedescendant", "");
+      highlightedSuggestionIndex = -1;
+      suggestionItems = [];
+    }
+    function updateHighlightedSuggestion() {
+      const list = $("suggestionList");
+      list.querySelectorAll(".suggestion").forEach((button, index) => {
+        const highlighted = index === highlightedSuggestionIndex;
+        button.classList.toggle("highlighted", highlighted);
+        button.setAttribute("aria-selected", String(highlighted));
+        const hint = button.querySelector(".suggestion-enter-hint");
+        if (hint) hint.textContent = highlighted ? "↵ Enter" : "";
+      });
+      $("guessInput").setAttribute("aria-activedescendant",
+        highlightedSuggestionIndex >= 0 ? `songOption-${highlightedSuggestionIndex}` : "");
+      const activeOption = list.querySelector(".highlighted");
+      if (activeOption) activeOption.scrollIntoView({ block: "nearest" });
     }
     function currentSong() { return songs[roundIndex]; }
     function setupHome() {
       $("headerDate").textContent = formatDate(dailyDateKey);
       $("dailyDate").textContent = "TODAY · " + formatDate(dailyDateKey);
+      dailyCountdownTimer = window.setInterval(updateDailyCompletionNotices, 1000);
       $("homeLink").addEventListener("click", (event) => {
         event.preventDefault();
         cancelAnswerModal();
@@ -645,7 +658,7 @@
       $("dailyTab").addEventListener("click", () => setMode("daily"));
       $("endlessTab").addEventListener("click", () => setMode("endless"));
       $("startButton").addEventListener("click", startGame);
-      $("retryCatalogButton").addEventListener("click", () => loadSongCatalog(true));
+      $("retryCatalogButton").addEventListener("click", () => loadSongCatalog());
       $("againButton").addEventListener("click", () => {
         if (mode === "endless") { startGame(); return; }
         setMode("daily");
@@ -664,9 +677,23 @@
       $("audioSeek").addEventListener("input", seekWithinPreview);
       $("guessInput").addEventListener("input", onSearchInput);
       $("guessInput").addEventListener("keydown", (event) => {
-        if (event.key === "Enter") {
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          if (!suggestionItems.length || !$("suggestionList").classList.contains("open")) return;
           event.preventDefault();
-          if (selectedSuggestion) chooseSuggestion(selectedSuggestion);
+          const direction = event.key === "ArrowDown" ? 1 : -1;
+          highlightedSuggestionIndex = highlightedSuggestionIndex < 0
+            ? (direction > 0 ? 0 : suggestionItems.length - 1)
+            : (highlightedSuggestionIndex + direction + suggestionItems.length) % suggestionItems.length;
+          updateHighlightedSuggestion();
+        }
+        if (event.key === "Enter") {
+          if ($("suggestionList").classList.contains("open") && highlightedSuggestionIndex >= 0) {
+            event.preventDefault();
+            selectedSuggestion = suggestionItems[highlightedSuggestionIndex];
+            submitGuess();
+            return;
+          }
+          event.preventDefault();
           submitGuess();
         }
         if (event.key === "Escape") closeSuggestions();
@@ -691,17 +718,41 @@
       $("endlessTab").setAttribute("aria-selected", String(!daily));
       $("welcomeTitle").textContent = daily ? "A new set, every day." : "How far can your ears take you?";
       $("welcomeDescription").textContent = daily
-        ? "Five tracks picked from the Philippines Top Songs chart."
+        ? "Five OPM, P-pop, and Filipino favorites spanning generations."
         : "Keep guessing. Each song gets less familiar as your streak grows.";
       $("dailyDate").textContent = daily ? "TODAY · " + formatDate(dailyDateKey) : "Songs get progressively harder with every round.";
-      $("startButton").textContent = daily ? "Play today's game →" : "Start endless mode →";
+      syncStartButton();
+      updateDailyCompletionNotices();
     }
     function startGame() {
-      if (checkDailyRollover() || $("startButton").disabled) return;
+      if (checkDailyRollover() || !catalogReady) return;
+      if (mode === "daily" && hasCompletedDaily()) {
+        viewDailyResults();
+        return;
+      }
       stopAudio();
+      endlessCount = 0;
+      const savedProgress = mode === "daily" ? readDailyProgress() : null;
+      if (savedProgress) {
+        songs = savedProgress.songs;
+        roundResults = savedProgress.roundResults;
+        roundIndex = savedProgress.roundIndex;
+        if (savedProgress.pendingAnswer) {
+          if (roundIndex >= 4) {
+            showResults();
+            return;
+          }
+          roundIndex++;
+          showScreen("gameScreen");
+          startRound();
+          return;
+        }
+        showScreen("gameScreen");
+        startRound(true);
+        return;
+      }
       roundResults = [];
       roundIndex = 0;
-      endlessCount = 0;
       if (mode === "daily") songs = dailyPlaylist();
       else songs = [pickEndlessSong(0)];
       showScreen("gameScreen");
@@ -712,26 +763,37 @@
       const ranges = [[85, 100], [70, 84], [55, 69], [35, 54], [0, 34]];
       const [low, high] = ranges[difficultyLevel];
       const previous = new Set(roundResults.map((result) => result.song.title));
-      let options = SONGS.filter((song) => song.popularity >= low && song.popularity <= high && !previous.has(song.title));
+      let options = SONGS.filter((song) => song.score >= low && song.score <= high && !previous.has(song.title));
       if (!options.length) options = SONGS.filter((song) => !previous.has(song.title));
       if (!options.length) options = SONGS;
       return { ...options[Math.floor(Math.random() * options.length)] };
     }
-    function startRound() {
+    function startRound(restoreSavedState = false) {
       roundLoadGeneration++;
       const loadGeneration = roundLoadGeneration;
+      if (previewErrorCleanup) previewErrorCleanup();
+      previewErrorCleanup = null;
+      activePreviewUrl = "";
       isRoundLocked = false;
       selectedSuggestion = null;
       revealedSeconds = FREE_SECONDS;
       roundScore = MAX_SCORE;
       artistRevealed = false;
+      if (restoreSavedState && mode === "daily") {
+        const progress = readDailyProgress();
+        if (progress && progress.roundIndex === roundIndex) {
+          revealedSeconds = Math.max(FREE_SECONDS, Math.min(MAX_PREVIEW_SECONDS, Number(progress.revealedSeconds) || FREE_SECONDS));
+          artistRevealed = Boolean(progress.artistRevealed);
+          roundScore = calculateRoundScore(revealedSeconds);
+        }
+      }
       hasPlayedClip = false;
       selectedRevealValue = String(CLIP_STEPS[1]);
       $("guessInput").value = "";
       $("guessInput").disabled = false;
       $("guessButton").disabled = false;
       $("skipButton").disabled = false;
-      $("guessNote").textContent = "Search Apple Music and pick a match.";
+      $("guessNote").textContent = "Search the available songs and pick a match.";
       $("guessNote").className = "guess-note";
       closeSuggestions();
       setAudioControlsEnabled(false);
@@ -745,7 +807,8 @@
         : `<span class="current" style="grid-column:1 / -1"></span>`;
       renderRoundList();
       renderWaveform();
-      $("audioCaption").textContent = "0.1-second clip · 10,000 points";
+      const restoredArtist = artistRevealed ? ` · Artist: ${currentSong().artist}` : "";
+      $("audioCaption").textContent = `${revealedSeconds.toFixed(1)}-second clip${restoredArtist} · ${roundScore.toLocaleString()} points`;
       activeClipStart = Number(currentSong().previewStartSeconds) || 0;
       activeClipEnd = activeClipStart + revealedSeconds;
       updateAudioSeeker();
@@ -755,6 +818,7 @@
       stopAudio();
       audio.removeAttribute("src");
       audio.load();
+      saveDailyProgress();
       loadPreview(currentSong(), loadGeneration);
     }
     function renderWaveform() {
@@ -783,71 +847,80 @@
     function escapeHTML(value) {
       return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
     }
-    async function loadPreview(song, loadGeneration) {
+    async function loadPreview(song, loadGeneration, requestedPreviewUrl = null) {
       const isCurrentLoad = () => loadGeneration === roundLoadGeneration && currentSong() === song;
-      const key = `${song.title}|${song.artist}`;
-      let track = artworkCache.get(key);
-      if (!track) {
-        try {
-          const query = encodeURIComponent(`${song.title} ${song.artist}`);
-          const response = await fetch(`https://api.deezer.com/search?q=${query}`);
-          if (!response.ok) throw new Error(`Deezer search failed (${response.status})`);
-          const data = await response.json();
-          let match = findDeezerPreview(data.data || [], song);
-          if (!match) {
-            const titleQuery = encodeURIComponent(song.title);
-            const fallbackResponse = await fetch(`https://api.deezer.com/search?q=${titleQuery}`);
-            if (!fallbackResponse.ok) throw new Error(`Deezer title search failed (${fallbackResponse.status})`);
-            const fallbackData = await fallbackResponse.json();
-            match = findDeezerPreview(fallbackData.data || [], song);
-          }
-          if (match) {
-            track = {
-              previewUrl: match.preview,
-              artworkUrl100: match.album && match.album.cover_medium || ""
-            };
-            artworkCache.set(key, track);
-          }
-        } catch (error) {
-          console.warn("Deezer preview lookup failed; trying iTunes:", error);
-        }
-      }
-      if (!track) {
-        try {
-          const query = encodeURIComponent(`${song.title} ${song.artist}`);
-          const response = await fetch(`https://itunes.apple.com/search?term=${query}&country=ph&entity=song&limit=25`);
-          if (!response.ok) throw new Error(`iTunes search failed (${response.status})`);
-          const data = await response.json();
-          const matches = findPreviewMatches(data.results || [], song);
-          track = matches[0] || null;
-          if (!track) {
-            const titleQuery = encodeURIComponent(song.title);
-            const fallbackResponse = await fetch(`https://itunes.apple.com/search?term=${titleQuery}&country=ph&entity=song&limit=25`);
-            if (!fallbackResponse.ok) throw new Error(`iTunes title search failed (${fallbackResponse.status})`);
-            const fallbackData = await fallbackResponse.json();
-            track = findPreviewMatches(fallbackData.results || [], song)[0] || null;
-          }
-          artworkCache.set(key, track);
-        } catch (error) {
-          console.warn("Song preview lookup failed:", error);
-        }
-      }
-      if (!track && song.previewUrl) {
-        track = { previewUrl: song.previewUrl, artworkUrl100: song.artworkUrl || "" };
-      }
       if (!isCurrentLoad()) return;
-      if (!track || !track.previewUrl) {
-        setAudioControlsEnabled(false);
-        setNote("No audio preview is available for this song. You can still guess it.", "");
+      if (!song.previewUrl) {
+        replaceUnavailablePreview(song, loadGeneration);
         return;
       }
-      song.previewUrl = track.previewUrl || "";
-      song.artworkUrl = track.artworkUrl100 || "";
+      const cachedPreview = getCachedDeezerPreview(song);
+      const previewUrl = requestedPreviewUrl || cachedPreview && cachedPreview.previewUrl || song.previewUrl;
+      activePreviewUrl = previewUrl;
       setAudioControlsEnabled(true);
-      audio.src = song.previewUrl;
+      audio.src = previewUrl;
+      const onPreviewError = () => {
+        if (!audio.error || audio.error.code === MEDIA_ERR_ABORTED) return;
+        if (previewErrorCleanup === cleanup) previewErrorCleanup = null;
+        cleanup();
+        handleUnavailablePreview(song, loadGeneration, previewUrl);
+      };
+      const cleanup = () => audio.removeEventListener("error", onPreviewError);
+      previewErrorCleanup = cleanup;
+      audio.addEventListener("error", onPreviewError);
       audio.load();
-      $("guessNote").textContent = "Listen and name the song.";
+      setNote(replacementNotice || "Listen and name the song.", "");
+      replacementNotice = "";
       playAudioFor(revealedSeconds, false, false, loadGeneration);
+    }
+    function getCachedDeezerPreview(song) {
+      const key = songIdentity(song);
+      const cached = deezerPreviewCache.get(key);
+      if (!cached || cached.expiresAt <= Date.now()) {
+        deezerPreviewCache.delete(key);
+        return null;
+      }
+      return cached.result;
+    }
+    function lookupDeezerPreview(song) {
+      const key = songIdentity(song);
+      const cached = deezerPreviewCache.get(key);
+      if (cached && cached.expiresAt > Date.now()) return cached.promise;
+
+      const callbackName = `hulaDeezerCallback${++deezerCallbackIndex}`;
+      const script = document.createElement("script");
+      const promise = new Promise((resolve) => {
+        let settled = false;
+        const timeout = window.setTimeout(() => {
+          finish(null, new Error("Deezer preview lookup timed out."));
+        }, 8000);
+        const finish = (result, error = null) => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timeout);
+          delete window[callbackName];
+          script.remove();
+          if (error) console.warn(`Could not look up a Deezer preview for "${song.title}":`, error);
+          const expiration = result && Number((result.previewUrl.match(/[?&]hdnea=exp=(\d+)/) || [])[1]);
+          const expiresAt = expiration
+            ? expiration * 1000 - 30000
+            : Date.now() + 60000;
+          deezerPreviewCache.set(key, { result, promise: Promise.resolve(result), expiresAt });
+          resolve(result);
+        };
+        window[callbackName] = (data) => {
+          const match = findDeezerPreview(data.data || [], song);
+          finish(match ? {
+            previewUrl: match.preview,
+            artworkUrl: match.album && match.album.cover_medium || ""
+          } : null);
+        };
+        script.onerror = () => finish(null, new Error("Deezer preview lookup request failed."));
+        script.src = `https://api.deezer.com/search?q=${encodeURIComponent(`${song.title} ${song.artist}`)}&output=jsonp&callback=${callbackName}`;
+        document.head.appendChild(script);
+      });
+      deezerPreviewCache.set(key, { result: null, promise, expiresAt: Infinity });
+      return promise;
     }
     function findDeezerPreview(results, song) {
       const wantedTitle = normalize(song.title);
@@ -855,23 +928,60 @@
       const matches = results.filter((item) => {
         const title = normalize(item.title);
         const artist = normalize(item.artist && item.artist.name);
-        return (title === wantedTitle || title.startsWith(wantedTitle)) &&
-          (artist.includes(primaryArtist) || primaryArtist.includes(artist)) &&
-          Boolean(item.preview);
+        const titleMatches = title === wantedTitle || title.startsWith(wantedTitle);
+        const artistMatches = artist && primaryArtist &&
+          (artist.includes(primaryArtist) || primaryArtist.includes(artist));
+        return titleMatches && artistMatches && item.preview;
       });
       matches.sort((a, b) => Number(normalize(b.title) === wantedTitle) - Number(normalize(a.title) === wantedTitle));
       return matches[0] || null;
     }
-    function findPreviewMatches(results, song) {
-      const wantedTitle = normalize(song.title);
-      const primaryArtist = normalize(song.artist.split(/,|&| feat(?:uring)? /i)[0]);
-      return results.filter((item) => {
-        const title = normalize(item.trackName);
-        const artist = normalize(item.artistName);
-        const titleMatches = title === wantedTitle || title.startsWith(wantedTitle);
-        const artistMatches = artist.includes(primaryArtist) || primaryArtist.includes(artist);
-        return titleMatches && artistMatches && item.previewUrl;
-      });
+    async function handleUnavailablePreview(song, loadGeneration, failedUrl) {
+      if (loadGeneration !== roundLoadGeneration || currentSong() !== song ||
+          isRoundLocked || activePreviewUrl !== failedUrl) return;
+      if (failedUrl === song.previewUrl) {
+        setNote("This preview couldn't be played. Trying an alternate source...", "");
+        const alternatePreview = await lookupDeezerPreview(song);
+        if (loadGeneration !== roundLoadGeneration || currentSong() !== song ||
+            isRoundLocked || activePreviewUrl !== failedUrl) return;
+        if (alternatePreview && alternatePreview.previewUrl !== failedUrl) {
+          replacementNotice = "This preview format failed; we're using an alternate preview.";
+          loadPreview(song, loadGeneration, alternatePreview.previewUrl);
+          return;
+        }
+      } else {
+        deezerPreviewCache.delete(songIdentity(song));
+      }
+      replaceUnavailablePreview(song, loadGeneration);
+    }
+    function replaceUnavailablePreview(song, loadGeneration) {
+      if (loadGeneration !== roundLoadGeneration || currentSong() !== song || isRoundLocked) return;
+      const failedIdentity = songIdentity(song);
+      failedPreviewSongs.add(failedIdentity);
+
+      const low = song.score >= 85 ? 85 : song.score >= 70 ? 70 : song.score >= 55 ? 55 : song.score >= 35 ? 35 : 0;
+      const high = low === 85 ? 100 : low === 70 ? 84 : low === 55 ? 69 : low === 35 ? 54 : 34;
+      let candidates = SONGS.filter((candidate) =>
+        songIdentity(candidate) !== failedIdentity &&
+        !failedPreviewSongs.has(songIdentity(candidate)) &&
+        candidate.score >= low && candidate.score <= high
+      );
+      if (mode === "daily") {
+        const scheduledSongs = new Set(songs
+          .filter((_, index) => index !== roundIndex)
+          .map(songIdentity));
+        candidates = candidates.filter((candidate) => !scheduledSongs.has(songIdentity(candidate)));
+      }
+      candidates.sort((a, b) => songIdentity(a).localeCompare(songIdentity(b)));
+      if (!candidates.length) {
+        setAudioControlsEnabled(false);
+        setNote("No working replacement is available in this difficulty bracket. You can skip this song.", "error");
+        return;
+      }
+      const replacement = candidates[hashSeed(failedIdentity) % candidates.length];
+      songs[roundIndex] = { ...replacement };
+      replacementNotice = "This preview was unavailable, so we automatically loaded a replacement.";
+      startRound();
     }
     function setAudioControlsEnabled(enabled) {
       $("playButton").disabled = !enabled;
@@ -994,6 +1104,29 @@
       $("revealNextButton").disabled = $("playButton").disabled || options.length === 0;
     }
     function normalize(value) { return String(value || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
+    function normalizeSongTitle(value) {
+      return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
+    }
+    function songIdentity(song) {
+      return song.trackId
+        ? `track:${song.trackId}`
+        : `title:${normalize(song.title)}|artist:${normalize(song.artist)}`;
+    }
+    function isMatchingSongGuess(guess, answer) {
+      if (songIdentity(guess) === songIdentity(answer)) return true;
+      if (normalize(guess.artist) !== normalize(answer.artist)) return false;
+      const guessTitle = normalizeSongTitle(guess.title);
+      const answerTitle = normalizeSongTitle(answer.title);
+      if (!guessTitle || !answerTitle) return false;
+      if (guessTitle === answerTitle) return true;
+      const isWholePhraseIn = (longer, shorter) =>
+        longer.startsWith(shorter + " ") ||
+        longer.endsWith(" " + shorter) ||
+        longer.includes(" " + shorter + " ");
+      return guessTitle.length < answerTitle.length
+        ? isWholePhraseIn(answerTitle, guessTitle)
+        : isWholePhraseIn(guessTitle, answerTitle);
+    }
     function stopAudio() {
       playbackGeneration++;
       if (audioStopTimer) clearTimeout(audioStopTimer);
@@ -1069,6 +1202,11 @@
       }).catch((error) => {
         if (generation !== playbackGeneration || expectedRoundGeneration !== roundLoadGeneration) return;
         if (error.name === "AbortError") return;
+        if (error.name === "NotSupportedError" ||
+            (audio.error && audio.error.code !== MEDIA_ERR_ABORTED)) {
+          handleUnavailablePreview(currentSong(), expectedRoundGeneration, activePreviewUrl);
+          return;
+        }
         console.warn("Audio playback failed:", error);
         if (!isRoundLocked || allowLocked) setNote("Couldn't play this preview. Use replay to try again.", "error");
       });
@@ -1114,6 +1252,7 @@
       $("scoreValue").textContent = roundScore.toLocaleString();
       updateRevealButton();
       renderRoundList();
+      saveDailyProgress();
       playRevealed();
     }
     function calculateClipScore(seconds) {
@@ -1133,21 +1272,36 @@
     function onSearchInput() {
       const query = $("guessInput").value.trim();
       selectedSuggestion = null;
-      clearTimeout(searchTimer);
       if (query.length < 2 || isRoundLocked) {
         closeSuggestions();
         return;
       }
-      setNote("Searching Apple Music...", "");
-      searchTimer = setTimeout(() => searchSongs(query), 250);
+      closeSuggestions();
+      const normalized = normalize(query);
+      const matches = SONGS.map((song) => {
+        const title = normalize(song.title);
+        const artist = normalize(song.artist);
+        const score = title === normalized ? 4
+          : title.startsWith(normalized) ? 3
+            : title.includes(normalized) ? 2
+              : artist.includes(normalized) ? 1 : 0;
+        return { song, score };
+      }).filter((item) => item.score > 0)
+        .sort((a, b) => b.score - a.score || b.song.score - a.song.score || a.song.title.localeCompare(b.song.title))
+        .slice(0, 8)
+        .map((item) => item.song);
+      renderSuggestions(matches, query);
     }
     function renderSuggestions(items, query) {
       const list = $("suggestionList");
+      suggestionItems = items;
+      highlightedSuggestionIndex = items.length ? 0 : -1;
       list.innerHTML = items.map((song, index) => {
         const image = song.artworkUrl ? `<img src="${escapeHTML(song.artworkUrl)}" alt="" loading="lazy">` : '<span class="cover-placeholder"></span>';
-        return `<button class="suggestion" role="option" data-index="${index}">${image}<span><span class="suggestion-title">${escapeHTML(song.title)}</span><span class="suggestion-artist">${escapeHTML(song.artist)}</span></span></button>`;
+        return `<button class="suggestion" id="songOption-${index}" role="option" aria-selected="${index === highlightedSuggestionIndex}" data-index="${index}">${image}<span class="suggestion-copy"><span class="suggestion-title">${escapeHTML(song.title)}</span><span class="suggestion-artist">${escapeHTML(song.artist)}</span></span><span class="suggestion-enter-hint">${index === highlightedSuggestionIndex ? "↵ Enter" : ""}</span></button>`;
       }).join("");
       list.classList.toggle("open", items.length > 0);
+      updateHighlightedSuggestion();
       list.querySelectorAll(".suggestion").forEach((button, index) => {
         button.addEventListener("click", () => chooseSuggestion(items[index]));
       });
@@ -1155,35 +1309,6 @@
         setNote("No matching songs found. Try another search.", "");
       } else if (items.length) {
         setNote("Select a song from the search results.", "");
-      }
-    }
-    async function searchSongs(query) {
-      try {
-        const response = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&country=ph&entity=song&limit=25`);
-        if (!response.ok) throw new Error(`Apple song search failed (${response.status})`);
-        const data = await response.json();
-        if ($("guessInput").value.trim() !== query || isRoundLocked) return;
-        const normalized = normalize(query);
-        const matches = (data.results || []).map((track) => ({
-          title: track.trackName || "",
-          artist: track.artistName || "",
-          popularity: 0,
-          trackId: String(track.trackId || ""),
-          previewUrl: track.previewUrl || "",
-          artworkUrl: track.artworkUrl100 || ""
-        })).filter((song) => song.title && song.artist);
-        matches.sort((a, b) => {
-          const score = (song) => normalize(song.title).startsWith(normalized) ? 2
-            : normalize(song.title).includes(normalized) ? 1
-              : normalize(song.artist).includes(normalized) ? 0 : -1;
-          return score(b) - score(a);
-        });
-        renderSuggestions(matches.slice(0, 8), query);
-      } catch (error) {
-        if ($("guessInput").value.trim() !== query) return;
-        console.warn("Apple song search failed:", error);
-        closeSuggestions();
-        setNote("Song search failed. Check your connection and try again.", "error");
       }
     }
     function chooseSuggestion(song) {
@@ -1200,16 +1325,24 @@
         $("guessInput").focus();
         return;
       }
-      finishRound(normalize(guess.title) === normalize(currentSong().title) && normalize(guess.artist) === normalize(currentSong().artist), false);
+      closeSuggestions();
+      finishRound(isMatchingSongGuess(guess, currentSong()), false, guess);
     }
-    function finishRound(correct, skipped) {
+    function finishRound(correct, skipped, answer = null) {
       if (isRoundLocked) return;
       isRoundLocked = true;
       roundLoadGeneration++;
       stopAudio();
       const song = currentSong();
       const score = correct ? roundScore : 0;
-      roundResults.push({ song, correct, skipped, score });
+      roundResults.push({
+        song,
+        correct,
+        skipped,
+        score,
+        answer: answer ? { title: answer.title, artist: answer.artist, trackId: answer.trackId || "" } : null
+      });
+      saveDailyProgress(true);
       $("guessButton").disabled = true;
       $("skipButton").disabled = true;
       $("guessInput").disabled = true;
@@ -1267,19 +1400,37 @@
       stopAudio();
       const total = roundResults.reduce((sum, result) => sum + result.score, 0);
       const correct = roundResults.filter((result) => result.correct).length;
+      if (mode === "daily") completeDailyGame();
       $("resultsTitle").textContent = mode === "daily" ? (correct === 5 ? "Grabe, perfect!" : correct >= 3 ? "ay wow" : "ahahahaha mali") : `${correct} song${correct === 1 ? "" : "s"} in a row`;
       $("resultsDescription").textContent = mode === "daily"
-        ? `You got ${correct} of 5 songs right. Come back tomorrow for a new set.`
+        ? `You got ${correct} of 5 songs right.`
         : `You correctly guessed ${correct} song${correct === 1 ? "" : "s"} before missing one.`;
       $("totalScore").textContent = total.toLocaleString();
       $("resultsList").innerHTML = roundResults.map((result, index) => {
         const image = result.song.artworkUrl ? `<img src="${escapeHTML(result.song.artworkUrl)}" alt="" loading="lazy">` : '<span class="result-cover"></span>';
         const tier = mode === "daily" ? ` · ${difficulty(result.song)}` : "";
-        return `<div class="result-item">${image}<span class="result-name"><strong>${escapeHTML(result.song.title)}</strong><span>${escapeHTML(result.song.artist)}${escapeHTML(tier)}</span></span><span class="result-score">${result.correct ? result.score.toLocaleString() : "0"} pts</span></div>`;
+        const answer = !result.correct
+          ? result.skipped ? "You skipped" : `You answered ${result.answer ? `${escapeHTML(result.answer.title)} — ${escapeHTML(result.answer.artist)}` : "incorrectly"}`
+          : "";
+        return `<div class="result-item">${image}<span class="result-name"><strong>${escapeHTML(result.song.title)}</strong><span>${escapeHTML(result.song.artist)}${escapeHTML(tier)}</span>${answer ? `<span class="result-answer">${answer}</span>` : ""}</span><span class="result-score">${result.correct ? result.score.toLocaleString() : "0"} pts</span></div>`;
       }).join("");
       $("shareStatus").textContent = "";
-      $("againButton").textContent = mode === "daily" ? "Back to daily game" : "Try endless again";
+      $("againButton").textContent = mode === "daily" ? "Daily game complete" : "Try endless again";
+      $("againButton").disabled = mode === "daily";
+      updateDailyCompletionNotices();
       showScreen("resultsScreen");
+    }
+    function viewDailyResults() {
+      const completion = readDailyCompletion();
+      if (!completion || !Array.isArray(completion.roundResults) || !completion.roundResults.length) {
+        $("catalogStatus").textContent = "Today's saved results are unavailable. Please refresh and try again.";
+        return;
+      }
+      roundResults = completion.roundResults;
+      songs = roundResults.map((result) => result.song);
+      roundIndex = Math.max(0, roundResults.length - 1);
+      mode = "daily";
+      showResults();
     }
     async function shareResults() {
       const total = roundResults.reduce((sum, result) => sum + result.score, 0);
@@ -1303,7 +1454,7 @@
     }
     setupHome();
     setMode("daily");
-    loadSongCatalog();
+    loadSongCatalog().then(restoreDailyProgressPrompt);
     window.setInterval(checkDailyRollover, 15000);
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) checkDailyRollover();
